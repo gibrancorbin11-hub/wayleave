@@ -3,3 +3,4 @@ node_modules/
 launch/
 .DS_Store
 npm-debug.log*
+.netlify/
