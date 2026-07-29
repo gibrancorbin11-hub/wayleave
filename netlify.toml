@@ -1,0 +1,13 @@
+[build]
+  publish = "site"
+
+# No build step — the site is two static files. Netlify detects the
+# data-netlify="true" form at deploy time and counts submissions in
+# Forms, which is where the Phase 1 threshold gets measured.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

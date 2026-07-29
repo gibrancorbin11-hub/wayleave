@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're on the list — Wayleave</title>
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #ffffff; --ink: #16150f; --muted: #5f5c52;
+    --line: #e2ddd2; --accent: #1f6f4a; --code-bg: #f2efe8;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #100f0c; --panel: #171612; --ink: #f3f1ea; --muted: #a09c90;
+      --line: #2c2a24; --accent: #4ec98d; --code-bg: #1e1c17;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #100f0c; --panel: #171612; --ink: #f3f1ea; --muted: #a09c90;
+    --line: #2c2a24; --accent: #4ec98d; --code-bg: #1e1c17;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf8; --panel: #ffffff; --ink: #16150f; --muted: #5f5c52;
+    --line: #e2ddd2; --accent: #1f6f4a; --code-bg: #f2efe8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: grid; place-items: center; min-height: 100vh;
+  }
+  .card { max-width: 32rem; padding: 2.5rem 1.5rem; }
+  .mark {
+    font-family: var(--mono); font-size: .8rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 1.25rem;
+  }
+  h1 { font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.2; letter-spacing: -.02em;
+       margin: 0 0 1rem; font-weight: 650; }
+  p { margin: 0 0 1.1rem; color: var(--muted); }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .8rem 1rem; overflow-x: auto; font-family: var(--mono);
+    font-size: .87rem; color: var(--ink); margin: 0 0 1.25rem;
+  }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--line);
+      text-underline-offset: .18em; }
+  a:hover { text-decoration-color: var(--accent); }
+  .links { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: .9rem;
+           padding-top: 1.25rem; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">Wayleave</div>
+    <h1>You're on the list.</h1>
+    <p>One email when the hosted meter is real. Nothing before that, nothing else after.</p>
+    <p>The middleware is free and finished today, if you want to start pricing agent traffic now:</p>
+    <pre>npm i wayleave</pre>
+    <div class="links">
+      <a href="/">Back to the overview</a>
+      <a href="https://github.com/gibrancorbin11-hub/wayleave">Source on GitHub</a>
+    </div>
+  </div>
+</body>
+</html>

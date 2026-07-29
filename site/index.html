@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wayleave — get paid when AI agents cross your app</title>
+<meta name="description" content="Free middleware verifies and prices AI agent traffic. The hosted meter keeps the ledger and bills them. We never touch your funds.">
+<meta property="og:title" content="Wayleave — get paid when AI agents cross your app">
+<meta property="og:description" content="Free middleware verifies and prices AI agent traffic. The hosted meter keeps the ledger and bills them.">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #16150f;
+    --muted: #5f5c52;
+    --line: #e2ddd2;
+    --accent: #1f6f4a;
+    --accent-ink: #ffffff;
+    --code-bg: #f2efe8;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #100f0c;
+      --panel: #171612;
+      --ink: #f3f1ea;
+      --muted: #a09c90;
+      --line: #2c2a24;
+      --accent: #4ec98d;
+      --accent-ink: #0d1a13;
+      --code-bg: #1e1c17;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #100f0c; --panel: #171612; --ink: #f3f1ea; --muted: #a09c90;
+    --line: #2c2a24; --accent: #4ec98d; --accent-ink: #0d1a13; --code-bg: #1e1c17;
+  }
+  :root[data-theme="light"] {
+    --bg: #fbfaf8; --panel: #ffffff; --ink: #16150f; --muted: #5f5c52;
+    --line: #e2ddd2; --accent: #1f6f4a; --accent-ink: #ffffff; --code-bg: #f2efe8;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 44rem; margin: 0 auto; padding: 4rem 1.5rem 5rem; }
+  @media (max-width: 30rem) { .wrap { padding: 2.5rem 1.15rem 3.5rem; } }
+
+  header { margin-bottom: 3rem; }
+  .mark {
+    font-family: var(--mono); font-size: .8rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 1.5rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 6vw, 2.7rem); line-height: 1.14;
+    letter-spacing: -.02em; margin: 0 0 1.1rem; font-weight: 650;
+  }
+  .lede { font-size: 1.12rem; color: var(--muted); margin: 0; max-width: 34rem; }
+
+  h2 {
+    font-size: .78rem; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; font-family: var(--mono);
+    margin: 3.25rem 0 1rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  p { margin: 0 0 1.1rem; }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--line);
+      text-underline-offset: .18em; }
+  a:hover { text-decoration-color: var(--accent); }
+
+  .lanes { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+  .lanes li {
+    display: grid; grid-template-columns: 11rem 1fr; gap: 1rem;
+    padding: .7rem 0; border-bottom: 1px solid var(--line); align-items: baseline;
+  }
+  .lanes li:last-child { border-bottom: 0; }
+  .lane { font-family: var(--mono); font-size: .84rem; color: var(--accent); }
+  .lanes span:last-child { color: var(--muted); font-size: .95rem; }
+  @media (max-width: 30rem) {
+    .lanes li { grid-template-columns: 1fr; gap: .15rem; }
+  }
+
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .9rem 1rem; overflow-x: auto; margin: 0 0 1.25rem;
+    font-family: var(--mono); font-size: .87rem; line-height: 1.55;
+  }
+  code { font-family: var(--mono); font-size: .92em; }
+  p code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+
+  .status {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    padding: 1rem 1.15rem; margin: 0 0 1.25rem; border-radius: 0 8px 8px 0;
+  }
+  .status p { margin: 0 0 .65rem; font-size: .97rem; }
+  .status p:last-child { margin: 0; }
+  .status strong { font-weight: 650; }
+
+  form {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1.5rem; margin-top: 1.25rem;
+  }
+  label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .4rem; }
+  .hint { font-size: .84rem; color: var(--muted); font-weight: 400; margin-bottom: .5rem; }
+  input[type=email], select {
+    width: 100%; padding: .7rem .8rem; font: inherit; font-size: .97rem;
+    color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 7px;
+  }
+  input[type=email]:focus, select:focus {
+    outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent);
+  }
+  .field { margin-bottom: 1.15rem; }
+  button {
+    width: 100%; padding: .8rem 1rem; font: inherit; font-weight: 650;
+    color: var(--accent-ink); background: var(--accent);
+    border: 0; border-radius: 7px; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  .fineprint { font-size: .84rem; color: var(--muted); margin: .9rem 0 0; }
+  .hidden { position: absolute; left: -9999px; }
+
+  footer {
+    margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line);
+    font-size: .87rem; color: var(--muted);
+    display: flex; gap: 1.25rem; flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark">Wayleave</div>
+    <h1>Get paid when AI agents cross your app.</h1>
+    <p class="lede">A wayleave is the fee utilities have paid for 150 years for the right to run cables across private land. Agents cross your app for free. Charge them.</p>
+  </header>
+
+  <h2>The free part — shipping today</h2>
+  <p>Express/Node middleware, zero dependencies, native crypto only. It sorts every request into a lane:</p>
+  <ul class="lanes">
+    <li><span class="lane">verified_agent</span><span>Valid Ed25519 signature per the Web Bot Auth profile of RFC 9421</span></li>
+    <li><span class="lane">declared_agent</span><span>Says it's a bot, presents no signature</span></li>
+    <li><span class="lane">suspected_bot</span><span>Automation fingerprints — or a signature that fails verification</span></li>
+    <li><span class="lane">human</span><span>Browser-shaped. Never sees a paywall, ever.</span></li>
+  </ul>
+  <p>On routes you price, non-human lanes get <code>402 Payment Required</code> with an x402-shaped challenge.</p>
+  <pre>npm i wayleave</pre>
+
+  <h2>The paid part — what this list decides</h2>
+  <p>The middleware emits a usage event for every priced request. Knowing what you're owed means keeping those events durably, deduplicating them, and turning them into something you can invoice against. That's the hosted meter:</p>
+  <ul class="lanes">
+    <li><span class="lane">ledger</span><span>Durable, idempotent record of every billable crossing</span></li>
+    <li><span class="lane">identity</span><span>Usage attributed to a cryptographic agent identity, not an IP guess</span></li>
+    <li><span class="lane">billing</span><span>Invoices and receipts per agent operator</span></li>
+    <li><span class="lane">directories</span><span>Key fetching, caching, and rotation handled for you</span></li>
+  </ul>
+  <p><strong>We never touch your money.</strong> Settlement stays on a payment rail you choose. Wayleave is the meter and the policy layer — you get billing records, not a middleman holding your funds.</p>
+
+  <h2>Status, honestly stated</h2>
+  <div class="status">
+    <p><strong>The middleware is real.</strong> Signature verification is genuine Ed25519 over an RFC 9421 signature base. Forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected, and it's tested adversarially. Sub-millisecond per request.</p>
+    <p><strong>The hosted meter is not built.</strong> Not a beta, not a private preview — unbuilt. This list is how I decide whether to build it. If enough people running real agent traffic want it, I build it. If not, I don't, and the middleware stays free and finished.</p>
+    <p>No launch date, no pricing page, no fake urgency. You'll get one email when there's something real, and nothing else.</p>
+  </div>
+
+  <h2>Join the list</h2>
+  <form name="waitlist" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/thanks.html">
+    <p class="hidden"><label>Don't fill this out: <input name="bot-field"></label></p>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@company.com">
+    </div>
+
+    <div class="field">
+      <label for="traffic">Roughly how much agent traffic do you see?</label>
+      <div class="hint">Optional, and the single most useful thing you can tell me.</div>
+      <select id="traffic" name="traffic">
+        <option value="">Prefer not to say</option>
+        <option value="none-yet">None yet — planning ahead</option>
+        <option value="noticeable">Noticeable in the logs</option>
+        <option value="significant">A real share of total requests</option>
+        <option value="paying-to-serve">Enough that I'm paying to serve it</option>
+      </select>
+    </div>
+
+    <button type="submit">Join the waitlist</button>
+    <p class="fineprint">One email when the meter is real. No newsletter, no sharing your address.</p>
+  </form>
+
+  <footer>
+    <a href="https://github.com/gibrancorbin11-hub/wayleave">Source on GitHub</a>
+    <a href="https://www.npmjs.com/package/wayleave">Package on npm</a>
+    <span>MIT licensed</span>
+  </footer>
+
+</div>
+</body>
+</html>
