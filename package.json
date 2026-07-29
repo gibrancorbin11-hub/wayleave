@@ -1,0 +1,43 @@
+{
+  "name": "wayleave",
+  "version": "0.1.2",
+  "description": "Charge AI agents for passage across your app. Verify agent signatures (Web Bot Auth / Ed25519), classify every request, and return 402 with a price on routes you choose. Humans browse free.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai-agents",
+    "web-bot-auth",
+    "rfc9421",
+    "402",
+    "x402",
+    "agent-payments",
+    "bot-detection",
+    "middleware",
+    "express",
+    "monetization",
+    "ed25519"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gibrancorbin11-hub/wayleave.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gibrancorbin11-hub/wayleave/issues"
+  },
+  "homepage": "https://github.com/gibrancorbin11-hub/wayleave#readme"
+}
