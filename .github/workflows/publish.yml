@@ -1,0 +1,65 @@
+name: Publish to npm
+
+# Trusted Publishing (OIDC). No npm token, no authenticator code, nothing that
+# expires. This exists because the sendable.me npm account uses a security key
+# for 2FA and has no TOTP app — and npm's CLI has no WebAuthn publish flow, so
+# `npm publish --otp=<code>` can never succeed from a laptop. The bypass token
+# that published 0.1.2 expires 2026-08-05; this replaces it permanently.
+#
+# One-time setup on npmjs.com (package -> Settings -> Trusted Publisher):
+#   Organization or user: gibrancorbin11-hub
+#   Repository:           wayleave
+#   Workflow filename:    publish.yml
+#   Environment:          (leave blank)
+#
+# To ship a version:
+#   1. bump "version" in package.json and add a CHANGELOG entry
+#   2. git commit && git push
+#   3. git tag v0.1.3 && git push origin v0.1.3
+# The tag push runs the tests and publishes only if they pass.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required — this is what mints the OIDC token npm verifies
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing requires npm >= 11.5.1. Ubuntu runners ship older.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Show versions
+        run: node --version && npm --version
+
+      # Zero dependencies, so there is nothing to install — just run the suite.
+      # A failing test must block the publish.
+      - name: Test
+        run: npm test
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag v$TAG does not match package.json version $PKG" >&2
+            exit 1
+          fi
+          echo "Tag and package.json agree on $PKG"
+
+      - name: Publish
+        run: npm publish --access public
