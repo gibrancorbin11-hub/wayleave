@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Terms — Wayleave</title>
+<meta name="description" content="Terms for the Wayleave website and waitlist. The software itself is MIT licensed." />
+
+<link rel="preconnect" href="https://api.fontshare.com" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&f[]=satoshi@400,500,700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400..700&display=swap" />
+
+<link rel="stylesheet" href="base.css" />
+<link rel="stylesheet" href="style.css" />
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A0D0A'/%3E%3Cpath d='M8 24 L24 8' stroke='%233FE28F' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%233FE28F'/%3E%3C/svg%3E" />
+
+<style>
+  .legal { padding: 4rem 0 5rem; }
+  .legal__inner { max-width: 44rem; }
+  .legal h1 { font-size: clamp(1.9rem, 5vw, 2.5rem); line-height: 1.15; margin: 0 0 .6rem; }
+  .legal__meta { color: var(--color-text-muted); font-size: .92rem; margin: 0 0 2.5rem; }
+  .legal h2 {
+    font-size: 1.12rem; margin: 2.5rem 0 .75rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .legal p, .legal li { color: var(--color-text-muted); line-height: 1.7; }
+  .legal p { margin: 0 0 1rem; }
+  .legal ul { margin: 0 0 1rem; padding-left: 1.2rem; }
+  .legal li { margin-bottom: .5rem; }
+  .legal strong { color: var(--color-text); font-weight: 600; }
+  .legal a { color: var(--color-text); }
+  .legal__back { display: inline-block; margin-bottom: 2rem; font-size: .92rem; }
+  .legal code {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: .92em; color: var(--color-text);
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="container container--wide site-header__inner">
+    <a href="/" class="brand" aria-label="Wayleave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="8" stroke="currentColor" stroke-width="1.4" opacity="0.35"/>
+        <path d="M9 23 L23 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+      </svg>
+      Wayleave
+    </a>
+  </div>
+</header>
+
+<main id="main" class="legal">
+  <div class="container container--narrow legal__inner">
+    <a class="legal__back" href="/">← Back to Wayleave</a>
+
+    <h1>Terms</h1>
+    <p class="legal__meta">Last updated 30 July 2026.</p>
+
+    <p>Two separate things live under the Wayleave name, and they have different terms. This page covers the website and the waitlist. The software has its own licence.</p>
+
+    <h2>The software is MIT licensed</h2>
+    <p>The <code>wayleave</code> npm package and its source are released under the <a href="https://github.com/gibrancorbin11-hub/wayleave/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT licence</a>. That licence governs your use of the code, including the part that matters most: it is provided <strong>as is, without warranty of any kind</strong>. Nothing on this website adds a guarantee that the licence does not give.</p>
+
+    <h2>What the software does and does not do</h2>
+    <p>This is worth being explicit about, because the subject matter is security and money:</p>
+    <ul>
+      <li>Wayleave is a <strong>screening and pricing layer, not a guarantee</strong>. It verifies signatures that are presented and classifies traffic on the evidence available. It cannot promise that every automated request is caught, nor that a determined party cannot imitate a browser.</li>
+      <li><strong>Settlement is not implemented.</strong> The 402 challenge and the payment-proof check work. No payment network is wired up. Wayleave does not move, hold, or take custody of funds, and it is not a payment processor, money transmitter, or escrow service.</li>
+      <li>Decisions it returns are <strong>advisory to your application</strong>. What you do with a lane classification — allow, deny, charge — is your configuration and your responsibility.</li>
+    </ul>
+    <p>You are responsible for how you deploy it, what you charge, and for complying with the laws that apply to your own service.</p>
+
+    <h2>The waitlist</h2>
+    <p>Joining the waitlist is not a purchase, a subscription, a pre-order, or a contract. No payment is taken and nothing is owed by either side.</p>
+    <p>The hosted meter described on the home page <strong>does not exist yet</strong>. The waitlist exists to decide whether it gets built. There is no commitment that it will be built, no promised launch date, and no guarantee of access, pricing, or features if it is. If that changes, it will change through a specific offer you can accept or decline — not through this page.</p>
+    <p>You can leave the list at any time by emailing <a href="mailto:hello@wayleave.dev">hello@wayleave.dev</a>. What happens to your data is set out in the <a href="/privacy.html">privacy notice</a>.</p>
+
+    <h2>This website</h2>
+    <p>Provided as is. It may be changed, moved, or taken down without notice. Content here — including any figures about agent traffic, latency, or test coverage — is offered in good faith and accurately as of the date shown, but it is descriptive, not a warranty, and not professional advice of any kind.</p>
+    <p>Links to third-party sites and packages are for convenience. Their content and terms are theirs, not mine.</p>
+
+    <h2>Don't do these things</h2>
+    <p>Please don't attack the site, submit other people's email addresses to the waitlist, submit deliberately false entries to skew the result, or scrape it in a way that degrades it for anyone else. The traffic-volume answers are being used to make a real decision, so poisoning them mostly just wastes everyone's time.</p>
+
+    <h2>Liability</h2>
+    <p>To the fullest extent the law allows, no liability is accepted for indirect, incidental, or consequential loss arising from use of this website or the waitlist — including lost revenue, lost data, or requests wrongly allowed or wrongly blocked by the software. The MIT licence's disclaimer applies to the code. Nothing here limits liability where the law does not permit it.</p>
+
+    <h2>Contact</h2>
+    <p>Wayleave is an independent open-source project maintained by Gibran Corbin. Anything at all: <a href="mailto:hello@wayleave.dev">hello@wayleave.dev</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container container--wide site-footer__inner">
+    <div class="site-footer__brand">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>
+      Wayleave — MIT licensed
+    </div>
+    <div class="site-footer__links">
+      <a href="/">Home</a>
+      <a href="https://github.com/gibrancorbin11-hub/wayleave" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+      <a href="mailto:hello@wayleave.dev">hello@wayleave.dev</a>
+      <a href="/privacy.html">Privacy</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
