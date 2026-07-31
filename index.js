@@ -28,28 +28,80 @@ export const LANES = Object.freeze({
 
 // ── RFC 9421 profile (Web Bot Auth usage) ───────────────────────────────
 
-const PARAMS_RE = /created=(\d+);expires=(\d+);keyid="([^"]+)";tag="([^"]+)"/;
+/**
+ * Parse an RFC 9421 `signature-input` value: `label=("a" "b");k=v;k2="v2"`.
+ *
+ * Parameters form a dictionary — order is NOT significant, and no
+ * implementation is obliged to emit them in any particular sequence. The
+ * label is arbitrary too (Cloudflare uses `sig2`, we emit `sig1`). Anything
+ * that hardcodes either will reject legitimately signed traffic.
+ *
+ * Returns { label, components, params, paramsRaw } or null.
+ * `paramsRaw` is preserved verbatim — the signature base must reproduce it
+ * byte for byte or verification fails.
+ */
+function parseSignatureInput(raw) {
+  const eq = raw.indexOf('=');
+  if (eq < 1) return null;
+  const label = raw.slice(0, eq).trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(label)) return null;
 
-function sigBase(authority, signatureAgent, params) {
-  return Buffer.from(
-    `"@authority": ${authority}\n` +
-    `"signature-agent": ${signatureAgent}\n` +
-    `"@signature-params": ${params}`
+  const paramsRaw = raw.slice(eq + 1);
+  const close = paramsRaw.indexOf(')');
+  if (!paramsRaw.startsWith('(') || close < 0) return null;
+
+  const components = (paramsRaw.slice(1, close).match(/"[^"]*"/g) || [])
+    .map(s => s.slice(1, -1).toLowerCase());
+
+  const params = {};
+  const re = /;\s*([A-Za-z0-9_.-]+)=("[^"]*"|[^;]+)/g;
+  let m;
+  while ((m = re.exec(paramsRaw.slice(close + 1))) !== null) {
+    const v = m[2].trim();
+    params[m[1]] = v.startsWith('"') ? v.slice(1, -1) : v;
+  }
+  return { label, components, params, paramsRaw };
+}
+
+/** Structured-field strings arrive quoted; the directory URL itself is not. */
+function unquote(s) {
+  return s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
+}
+
+function headerValue(headers, name) {
+  const v = headers[name];
+  return Array.isArray(v) ? v.join(', ') : (v == null ? '' : String(v));
+}
+
+/**
+ * Build the signature base from the components the signer actually declared,
+ * not from a fixed list. An agent covering only ("@authority") is valid.
+ */
+function sigBase(components, ctx, paramsRaw) {
+  const lines = components.map(c =>
+    c === '@authority'
+      ? `"@authority": ${ctx.authority}`
+      : `"${c}": ${headerValue(ctx.headers, c)}`
   );
+  lines.push(`"@signature-params": ${paramsRaw}`);
+  return Buffer.from(lines.join('\n'));
 }
 
 export function buildParams(keyid, created, expires) {
   return `("@authority" "signature-agent");created=${created};` +
-         `expires=${expires};keyid="${keyid}";tag="web-bot-auth"`;
+         `keyid="${keyid}";alg="ed25519";expires=${expires};tag="web-bot-auth"`;
 }
 
 /** What a legitimate agent operator's SDK does before sending. */
 export function signRequest(headers, authority, privateKey, keyid, directoryUrl,
                             created = Math.floor(Date.now() / 1000),
                             expires = created + 300) {
-  headers['signature-agent'] = directoryUrl;
+  // Structured-field string: the value is sent quoted.
+  headers['signature-agent'] = `"${directoryUrl}"`;
   const params = buildParams(keyid, created, expires);
-  const sig = edSign(null, sigBase(authority, directoryUrl, params), privateKey);
+  const base = sigBase(['@authority', 'signature-agent'],
+                       { authority, headers }, params);
+  const sig = edSign(null, base, privateKey);
   headers['signature-input'] = `sig1=${params}`;
   headers['signature'] = `sig1=:${sig.toString('base64')}:`;
   return headers;
@@ -61,18 +113,32 @@ export function signRequest(headers, authority, privateKey, keyid, directoryUrl,
  */
 export function verifySignature(h, authority, directories,
                                 now = Math.floor(Date.now() / 1000)) {
-  const sigInput = h['signature-input'] || '';
-  const sigHeader = h['signature'] || '';
-  const directory = h['signature-agent'] || '';
+  const sigInput = headerValue(h, 'signature-input');
+  const sigHeader = headerValue(h, 'signature');
+  const rawAgent = headerValue(h, 'signature-agent');
 
-  if (!sigInput || !sigHeader || !directory)
+  if (!sigInput || !sigHeader || !rawAgent)
     return { ok: false, agentId: null, reason: 'no signature presented' };
 
-  const m = PARAMS_RE.exec(sigInput);
-  if (!m) return { ok: false, agentId: null, reason: 'malformed signature-input' };
-  const [, createdS, expiresS, keyid, tag] = m;
-  const created = +createdS, expires = +expiresS;
+  const parsed = parseSignatureInput(sigInput);
+  if (!parsed) return { ok: false, agentId: null, reason: 'malformed signature-input' };
+  const { label, components, params, paramsRaw } = parsed;
 
+  const directory = unquote(rawAgent);
+  const keyid = params.keyid;
+  const tag = params.tag;
+  const created = Number(params.created);
+  const expires = Number(params.expires);
+
+  if (!keyid) return { ok: false, agentId: null, reason: 'signature-input missing keyid' };
+  if (!Number.isFinite(created) || !Number.isFinite(expires))
+    return { ok: false, agentId: null, reason: 'signature-input missing created/expires' };
+  if (!components.includes('@authority'))
+    return { ok: false, agentId: null, reason: '@authority not covered by signature' };
+  // alg is mandatory in the Web Bot Auth profile; tolerate its absence for
+  // signers that omit it, but reject anything that is not Ed25519.
+  if (params.alg && params.alg.toLowerCase() !== 'ed25519')
+    return { ok: false, agentId: null, reason: `unsupported alg "${params.alg}"` };
   if (tag !== 'web-bot-auth')
     return { ok: false, agentId: null, reason: `unexpected tag "${tag}"` };
   if (now < created - 30)
@@ -96,11 +162,13 @@ export function verifySignature(h, authority, directories,
     dir[keyid] = key; // cache the KeyObject
   }
 
-  const sm = /sig1=:([A-Za-z0-9+/=]+):/.exec(sigHeader);
+  // Match the signature by the label the signer used, not a hardcoded "sig1".
+  const sm = new RegExp(
+    `(?:^|,)\\s*${label.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}=:([A-Za-z0-9+/=]+):`
+  ).exec(sigHeader);
   if (!sm) return { ok: false, agentId: null, reason: 'malformed signature header' };
 
-  const params = sigInput.slice(sigInput.indexOf('sig1=') + 5);
-  const valid = edVerify(null, sigBase(authority, directory, params),
+  const valid = edVerify(null, sigBase(components, { authority, headers: h }, paramsRaw),
                          key, Buffer.from(sm[1], 'base64'));
   if (!valid)
     return { ok: false, agentId: null,

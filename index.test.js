@@ -203,3 +203,83 @@ test('verify+policy per signed request under 5ms', () => {
   console.log(`      per signed request: ${ms.toFixed(3)}ms`);
   assert.ok(ms < 5, `${ms}ms`);
 });
+
+// ── interop: signatures NOT produced by this library ─────────────────────
+//
+// Every test above signs with our own signRequest, so they all round-trip
+// through one wire format and cannot catch a format mismatch. These sign at
+// the byte level in other implementations' shapes. The first one is the exact
+// parameter ordering and label from Cloudflare's Web Bot Auth documentation,
+// which this library rejected as "malformed signature-input" before 0.1.4.
+
+import { sign as edSign } from 'node:crypto';
+
+/** Sign an arbitrary signature-input verbatim, the way a foreign SDK would. */
+function foreignSign(r, paramsRaw, { label = 'sig1', key = anthropic.privateKey,
+                                     dir = 'https://agents.anthropic.example/keys',
+                                     components = ['@authority', 'signature-agent'] } = {}) {
+  r.headers['signature-agent'] = `"${dir}"`;
+  const lines = components.map(c =>
+    c === '@authority' ? `"@authority": ${r.authority}`
+                       : `"${c}": ${r.headers[c] ?? ''}`);
+  lines.push(`"@signature-params": ${paramsRaw}`);
+  const sig = edSign(null, Buffer.from(lines.join('\n')), key);
+  r.headers['signature-input'] = `${label}=${paramsRaw}`;
+  r.headers['signature'] = `${label}=:${sig.toString('base64')}:`;
+  return r;
+}
+
+const CF = (created = NOW, expires = NOW + 300) =>
+  `("@authority" "signature-agent");created=${created};keyid="claude-1";` +
+  `alg="ed25519";expires=${expires};tag="web-bot-auth"`;
+
+test('Cloudflare parameter order and sig2 label → verified', () => {
+  const w = new Wayleave(OPTS());
+  const d = w.handle(foreignSign(req(), CF(), { label: 'sig2' }), NOW);
+  assert.equal(d.lane, LANES.VERIFIED);
+  assert.equal(d.identity, 'https://agents.anthropic.example/keys#claude-1');
+});
+
+test('parameters in any order → verified (they are a dictionary)', () => {
+  const w = new Wayleave(OPTS());
+  const shuffled = `("@authority" "signature-agent");tag="web-bot-auth";` +
+    `alg="ed25519";keyid="claude-1";expires=${NOW + 300};created=${NOW}`;
+  assert.equal(w.handle(foreignSign(req(), shuffled), NOW).lane, LANES.VERIFIED);
+});
+
+test('an optional nonce does not break verification', () => {
+  const w = new Wayleave(OPTS());
+  const withNonce = `("@authority" "signature-agent");created=${NOW};` +
+    `keyid="claude-1";alg="ed25519";expires=${NOW + 300};nonce="abc123";tag="web-bot-auth"`;
+  assert.equal(w.handle(foreignSign(req(), withNonce), NOW).lane, LANES.VERIFIED);
+});
+
+test('covering only @authority → verified', () => {
+  const w = new Wayleave(OPTS());
+  const only = `("@authority");created=${NOW};keyid="claude-1";` +
+    `alg="ed25519";expires=${NOW + 300};tag="web-bot-auth"`;
+  const d = w.handle(foreignSign(req(), only, { components: ['@authority'] }), NOW);
+  assert.equal(d.lane, LANES.VERIFIED);
+});
+
+test('a non-Ed25519 alg is refused, not silently trusted', () => {
+  const w = new Wayleave(OPTS());
+  const rsa = `("@authority" "signature-agent");created=${NOW};keyid="claude-1";` +
+    `alg="rsa-pss-sha512";expires=${NOW + 300};tag="web-bot-auth"`;
+  assert.equal(w.handle(foreignSign(req(), rsa), NOW).lane, LANES.SUSPECT);
+});
+
+test('a signature not covering @authority is refused', () => {
+  const w = new Wayleave(OPTS());
+  const noAuth = `("signature-agent");created=${NOW};keyid="claude-1";` +
+    `alg="ed25519";expires=${NOW + 300};tag="web-bot-auth"`;
+  const d = w.handle(foreignSign(req(), noAuth, { components: ['signature-agent'] }), NOW);
+  assert.equal(d.lane, LANES.SUSPECT);
+});
+
+test('foreign-format tampering is still caught', () => {
+  const w = new Wayleave(OPTS());
+  const r = foreignSign(req(), CF(), { label: 'sig2' });
+  r.authority = 'evil.example.com';           // changed after signing
+  assert.equal(w.handle(r, NOW).lane, LANES.SUSPECT);
+});

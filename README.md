@@ -44,14 +44,16 @@ app.use(gate.express());
 
 ## Guarantees, honestly stated
 
-- Signature verification is real Ed25519 over an RFC 9421 signature base (`@authority`, `signature-agent`) — forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected. Tested adversarially.
+- Signature verification is real Ed25519 over an RFC 9421 signature base — forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected. Tested adversarially, and against other implementations' wire formats rather than only its own.
+- Signature parameters are parsed as an RFC 9421 dictionary: order-independent, `alg` enforced as Ed25519, any signature label, and the signature base is built from whatever components the signer declared. Requests signed in Cloudflare's documented format verify.
 - Sub-millisecond per request. Your latency budget won't notice.
 - The metering hook can throw, crash, or hang your billing backend — serving continues. Your uptime never depends on ours.
+- Key directories still load from config rather than a live JWKS fetch, so key rotation is not handled. That is the next real gap.
 - This is a **screening and pricing layer, not a guarantee**. Every decision returns its evidence and is loggable.
 
 ## Status
 
-v0.1 — verification, lanes, policy, pricing, and the metering hook, all under test (22 scenarios, including forgery, tampering, and replay). Payment settlement network integration is in progress; today the 402 challenge and payment-proof check are pluggable.
+v0.1 — verification, lanes, policy, pricing, and the metering hook, all under test (29 scenarios, including forgery, tampering, replay, and cross-implementation wire formats). Payment settlement network integration is in progress; today the 402 challenge and payment-proof check are pluggable.
 
 ## License
 
