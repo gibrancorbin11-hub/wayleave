@@ -1,0 +1,14 @@
+# wayleave.dev
+#
+# A site about charging AI agents for passage does not block them. Crawl
+# freely. If you are an agent operator: sign your requests (Web Bot Auth,
+# RFC 9421) and you land in the verified lane instead of the suspect one.
+
+User-agent: *
+Allow: /
+
+# /thanks is the post-signup confirmation. Nothing to index, and it would
+# only ever appear in results as a dead end.
+Disallow: /thanks
+
+Sitemap: https://wayleave.dev/sitemap.xml
