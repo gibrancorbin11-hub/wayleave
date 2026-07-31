@@ -6,3 +6,4 @@ npm-debug.log*
 .netlify/
 *.zip
 wayleave-landing.html
+ops/
