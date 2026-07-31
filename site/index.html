@@ -213,7 +213,7 @@
   <section id="meter" class="meter">
     <div class="container container--wide">
       <div class="eyebrow">The hosted meter</div>
-      <h2 class="section-title reveal">The paid part — what this list decides</h2>
+      <h2 class="section-title reveal">The paid part — what gets built next</h2>
       <p class="section-lede reveal">The middleware emits a usage event for every priced request. Knowing what you're owed means keeping those events durably, deduplicating them, and turning them into something you can invoice against. That's the hosted meter:</p>
 
       <div class="lane-cards" style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap: var(--space-4);">
@@ -282,13 +282,18 @@
     <div class="container container--wide waitlist__grid">
       <div class="waitlist__copy">
         <div class="eyebrow">Join the list</div>
-        <h2 class="section-title reveal">Decide whether the meter gets built.</h2>
-        <p class="reveal">The middleware is free either way. This is only about the hosted meter — the ledger, billing, and directory service that turns priced crossings into invoices.</p>
+        <h2 class="section-title reveal">Get the meter first.</h2>
+        <p class="reveal">The middleware is free either way. This is only about the hosted meter — the ledger, billing, and directory service that turns priced crossings into invoices. <strong>From $49/month.</strong></p>
         <ul class="waitlist__list reveal">
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>One email when the meter is real</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>No newsletter, no noise</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Your traffic tier helps decide if it ships</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Your traffic tier shapes what ships first</li>
         </ul>
+        <figure class="meter-preview reveal">
+          <img src="/meter-preview.png" width="1240" height="879" loading="lazy"
+               alt="Design preview of the wayleave meter: a ledger of agent crossings grouped by cryptographic identity, showing amounts owed per verified agent and unbilled traffic from unsigned agents." />
+          <figcaption>Design preview — not a running product. Every domain shown is a reserved <code>.example</code> name.</figcaption>
+        </figure>
       </div>
 
       <div class="waitlist-form reveal" id="waitlistForm">
