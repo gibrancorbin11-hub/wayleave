@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Wayleave">
+  <title>Wayleave</title>
+  <rect width="512" height="512" rx="112" fill="#f8f7f2"/>
+  <path d="M136 376 L376 136" fill="none" stroke="#157a4f" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="44" fill="#157a4f"/>
+</svg>
