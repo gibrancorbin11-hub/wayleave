@@ -64,5 +64,9 @@ jobs:
           fi
           echo "Tag and package.json agree on $PKG"
 
+      # --provenance emits a signed attestation linking this tarball to the
+      # exact commit and workflow that built it. npm renders it as a
+      # "Built and signed on GitHub Actions" badge. Requires id-token: write,
+      # a public repo, and the repository field in package.json to match.
       - name: Publish
-        run: npm publish --access public
+        run: npm publish --access public --provenance

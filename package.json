@@ -1,14 +1,19 @@
 {
   "name": "wayleave",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Charge AI agents for passage across your app. Verify agent signatures (Web Bot Auth / Ed25519), classify every request, and return 402 with a price on routes you choose. Humans browse free.",
   "type": "module",
   "main": "index.js",
+  "types": "./index.d.ts",
   "exports": {
-    ".": "./index.js"
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "README.md",
     "LICENSE"
   ],

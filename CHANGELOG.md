@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.3
+
+Packaging and provenance. No behaviour changes — `index.js` is byte-identical
+to 0.1.2.
+
+- **TypeScript declarations** (`index.d.ts`), covering `Wayleave`, `LANES`,
+  `classify`, `verifySignature`, `signRequest`, `buildParams` and the option
+  and result shapes. Deliberately self-contained: the key type is declared
+  structurally rather than imported from `node:crypto`, so the types do not
+  pull in `@types/node` and the package stays dependency-free. Compiles under
+  `--strict`.
+- **Published with provenance** via GitHub Actions OIDC, so npm can show the
+  attestation linking this tarball to the commit and workflow that built it.
+  No publish token is involved.
+- **CI on every push** across Node 18, 20, 22 and 24, with the declaration
+  file type-checked in the matrix. The suite runs again before publishing, so
+  a red build cannot ship.
+
 ## 0.1.2
 
 First public release.

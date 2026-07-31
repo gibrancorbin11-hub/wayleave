@@ -4,3 +4,5 @@ launch/
 .DS_Store
 npm-debug.log*
 .netlify/
+*.zip
+wayleave-landing.html

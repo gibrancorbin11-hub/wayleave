@@ -1,0 +1,36 @@
+name: Tests
+
+# Runs on every push and PR so the suite is verifiable by a stranger, not
+# just asserted in the README. The publish workflow runs it again before
+# shipping, so a red build cannot reach npm.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22', '24']
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # Zero dependencies — nothing to install.
+      - name: Test
+        run: npm test
+
+      - name: Type declarations parse
+        if: matrix.node == '22'
+        run: npx -y typescript@latest --noEmit --strict index.d.ts
