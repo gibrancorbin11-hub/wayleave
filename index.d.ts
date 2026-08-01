@@ -60,6 +60,12 @@ export interface WayleaveRequest {
    * `trustProxy` is on.
    */
   ip?: string;
+  /**
+   * Your framework's own request, when an adapter supplied one. Never read
+   * for classification — it exists so `confirmHuman` can reach the session and
+   * cookies that the projection into this shape leaves behind.
+   */
+  raw?: unknown;
 }
 
 export interface VerifyResult {
@@ -172,6 +178,29 @@ export interface WayleaveOptions {
    * against the challenge you just issued.
    */
   verifyPayment?: PaymentVerifier;
+  /**
+   * Price priced routes for everything except an application-confirmed human.
+   * Default false.
+   *
+   * Off, the `human` lane crosses priced routes free — and that lane is a
+   * fall-through meaning "no automation tell was found", so a bot sending a
+   * browser `user-agent` and an `accept-language` header reaches it. On,
+   * absence of evidence stops being a free pass: only a verified signature
+   * (which pays) or `confirmHuman` returning true (which browses) crosses.
+   * Recommended wherever a route has a price on it.
+   */
+  strictPricedPaths?: boolean;
+  /**
+   * Positive proof a person is present — your session, your cookie, your
+   * challenge. Only consulted under `strictPricedPaths`. Fails closed: absent,
+   * throwing, or non-`true` all mean "pay or leave" on a priced route.
+   *
+   * Receives your framework's request under an adapter (the Express `req`,
+   * session and cookies intact), otherwise whatever you passed to `handle`.
+   * Do not infer humanity from headers here — a bot sends those too, which is
+   * the whole reason this callback exists.
+   */
+  confirmHuman?: (req: any) => boolean;
   /**
    * Believe `x-forwarded-for` for the client address. Default false. Turn on
    * ONLY behind a proxy you control that overwrites the header — otherwise

@@ -17,9 +17,11 @@ Every request gets classified into a lane:
 - **verified_agent** — valid Ed25519 signature (Web Bot Auth profile, RFC 9421) against a key directory you trust
 - **declared_agent** — identifies as a bot, no valid signature
 - **suspected_bot** — automation fingerprints without disclosure (an *invalid* signature lands here too — faking verification is the strongest fraud signal there is)
-- **human** — browser-shaped traffic
+- **human** — browser-shaped traffic, which means *nothing gave it away*, not that a person is there
 
 Then policy runs per lane: allow, deny, rate-limit — and on routes you price, agents get **402 Payment Required** with an x402-shaped challenge. Your human users never see a paywall.
+
+Only the first lane is cryptographic. The other three are read off what the client says about itself, so a bot willing to lie reaches the human lane — see [Guarantees](#guarantees-honestly-stated), and set `strictPricedPaths` on anything you charge for.
 
 ## Quickstart
 
@@ -51,13 +53,17 @@ app.use(gate.express());
 - Sub-millisecond per request. Your latency budget won't notice.
 - The metering hook can throw, crash, or hang your billing backend — serving continues. Your uptime never depends on ours.
 - Key directories still load from config rather than a live JWKS fetch, so key rotation is not handled. That is the next real gap.
+- **A bot that sends a browser `user-agent` and an `accept-language` header is classified `human` and crosses priced routes free.** Those two headers are the entire bypass. The `human` lane is a fall-through — it is reached by tripping none of the automation tells, which is absence of evidence, not evidence of a person. There is no TLS fingerprinting, no IP verification, and no challenge here; that work belongs at your edge or CDN, and pretending otherwise would be the dishonest version of this list. `strictPricedPaths: true` inverts the burden on priced routes so that only a verified signature or your own `confirmHuman(req)` crosses. Recommended wherever there is a price.
+- Wayleave prices **disclosure**; it does not detect **concealment**. It is a tollbooth, not a wall — it works on operators who want to be identifiable, which today is most of the ones worth billing.
 - This is a **screening and pricing layer, not a guarantee**. Every decision returns its evidence and is loggable.
 
 ## Status
 
-v0.1.5 — verification, lanes, policy, pricing, and the metering hook, all under test (44 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
+v0.1.6 — verification, lanes, policy, pricing, and the metering hook, all under test (55 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
 
 0.1.5 closes a hole worth naming: before it, a priced route accepted a payment proof that any agent could derive from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement confirmation is now yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced route, upgrade.
+
+0.1.6 addresses the other half of the same question. Payment could be faked; so could being human. `strictPricedPaths` lets a priced route demand positive evidence instead of accepting the absence of a bot signal as one.
 
 ## How payment actually works
 
@@ -93,6 +99,25 @@ nothing but a confirmed settlement is ever written to the ledger as billed.
 
 ## Security posture
 
+- **`strictPricedPaths: true` is the recommended setting on any priced route.**
+  Without it the free lane is whatever fails to look automated, so the cheapest
+  strategy against a paywall is to look like a browser. With it, a priced route
+  admits exactly two things: a verified signature that pays, and a request your
+  own `confirmHuman(req)` vouches for. That callback fails closed — absent,
+  throwing, or returning anything but `true` all mean pay or leave.
+
+  ```js
+  const gate = new Wayleave({
+    pricedPaths: { '/api/premium': 0.05 },
+    strictPricedPaths: true,
+    confirmHuman: req => Boolean(req.session?.userId),   // your session, not a header
+    verifyPayment: (proof, ctx) => facilitator.confirmSettled(proof, ctx),
+  });
+  ```
+
+  Never infer humanity from headers inside this callback. Every header a
+  browser sends, a bot can send too — that is the property strict mode exists
+  to close, and re-deriving it from `user-agent` reopens it.
 - **Rate limits key on the connection address, not `x-forwarded-for`.**
   The header is client-written unless a proxy you own overwrites it; believing
   it by default hands an attacker unlimited fresh buckets. Behind a real proxy,

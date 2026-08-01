@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.1.6
+
+**The free lane was whatever failed to look automated. Now you can demand
+proof instead.**
+
+`human` is a fall-through classification: a request reaches it by tripping
+none of the automation tells. Since humans are never priced, that asymmetry
+paid the spoofer — a browser `user-agent` plus an `accept-language` header
+was the entire bypass of every priced route. Nothing about that is subtle,
+and a bot doing it costs nothing to write.
+
+- **`strictPricedPaths: true`** inverts the burden on priced routes only.
+  Absence of a bot signal stops being a free pass; a priced route then admits
+  a verified signature (which pays) or an application-confirmed human (which
+  browses), and nothing else. Unpriced routes are untouched.
+- **`confirmHuman(req)`** is where that confirmation comes from — your
+  session, your cookie, your challenge, never a header. It fails closed:
+  absent, throwing, or returning anything other than `true` all deny. Same
+  doctrine as `verifyPayment` in 0.1.5.
+- **The Express adapter now forwards the framework request as `req.raw`**,
+  which `confirmHuman` receives. Without it the callback would only ever see
+  the projected `{method, path, headers, ip}` shape — no session, no cookies,
+  so it would return false for everyone and bill signed-in users as bots.
+  Classification still reads only the fields it declares.
+- The 402 now names which check failed, so the ledger distinguishes an agent
+  that has not paid from a visitor who could not be confirmed.
+- Default behaviour is unchanged. Off, 0.1.6 classifies and prices exactly as
+  0.1.5 did.
+- README states the bypass outright rather than leaving it to be discovered,
+  and the test suite asserts it works as described — a documented property
+  needs a test, not a paragraph. Tests: 46 → 55.
+
+This does not make Wayleave a bot wall. TLS fingerprinting, IP-range
+verification and behavioural analysis belong at an edge or CDN, not in Express
+middleware. Wayleave prices disclosure; it does not detect concealment.
+
 ## 0.1.5
 
 **Security. Upgrade if you price any route.**

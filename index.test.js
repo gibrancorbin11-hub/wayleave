@@ -321,6 +321,110 @@ test('human on priced path → free 200', () => {
   assert.equal(r.status, 200); assert.equal(r.billed, undefined);
 });
 
+// ── strictPricedPaths ───────────────────────────────────────────────────
+// The human lane is reached by failing to look like automation, so by default
+// it is spoofable with two headers. That is a documented property, not a
+// secret: the test below asserts the bypass works exactly as described, and
+// the rest assert that strict mode is the answer to it.
+
+test('DEFAULT: two headers buy free passage on a priced route', () => {
+  const bot = req('/api/premium/comps', {
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0',
+    lang: 'en-US,en;q=0.9' });
+  const r = new Wayleave(OPTS()).handle(bot, NOW);
+  assert.equal(r.lane, LANES.HUMAN, 'a browser UA is all the lane requires');
+  assert.equal(r.status, 200, 'this is the bypass the README discloses');
+});
+
+test('STRICT: the same spoofed request is asked to pay', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true };
+  const bot = req('/api/premium/comps', {
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0',
+    lang: 'en-US,en;q=0.9' });
+  const r = new Wayleave(opts).handle(bot, NOW);
+  assert.equal(r.lane, LANES.HUMAN, 'classification is unchanged...');
+  assert.equal(r.status, 402, '...but looking human no longer buys anything');
+  assert.equal(r.challenge.price_usd, 0.05);
+});
+
+test('STRICT: confirmHuman lets a real session browse free', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true,
+                 confirmHuman: r => r.headers.cookie === 'sid=real-session' };
+  const w = new Wayleave(opts);
+  const signedIn = w.handle(
+    req('/api/premium/comps', { extra: { cookie: 'sid=real-session' } }), NOW);
+  assert.equal(signedIn.status, 200);
+  assert.equal(signedIn.billed, undefined, 'a person is not a billable crossing');
+  const anon = w.handle(req('/api/premium/comps'), NOW);
+  assert.equal(anon.status, 402);
+});
+
+test('STRICT: no confirmHuman configured → nobody crosses free', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true };
+  const r = new Wayleave(opts).handle(req('/api/premium/comps'), NOW);
+  assert.equal(r.status, 402, 'fail closed, same doctrine as verifyPayment');
+});
+
+test('STRICT: a throwing confirmHuman denies rather than admits', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true,
+                 confirmHuman: () => { throw new Error('session store down'); } };
+  const r = new Wayleave(opts).handle(req('/api/premium/comps'), NOW);
+  assert.equal(r.status, 402, 'a broken check must never become an open door');
+});
+
+test('STRICT: confirmHuman must return true, not merely truthy', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true,
+                 confirmHuman: () => 'yes' };
+  const r = new Wayleave(opts).handle(req('/api/premium/comps'), NOW);
+  assert.equal(r.status, 402);
+});
+
+test('STRICT: verified agents still pay the ordinary way', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true, verifyPayment: () => true };
+  const w = new Wayleave(opts);
+  const unpaid = w.handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW);
+  assert.equal(unpaid.status, 402);
+  const paid = w.handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW, 'tx-abc');
+  assert.equal(paid.status, 200);
+  assert.equal(paid.billed, 0.05);
+});
+
+test('STRICT: unpriced paths are untouched — humans still browse', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true };
+  const r = new Wayleave(opts).handle(req('/api/listings'), NOW);
+  assert.equal(r.status, 200, 'strict mode is scoped to priced routes only');
+});
+
+test('STRICT: confirmHuman sees the framework request under express()', () => {
+  // The adapter projects the request down to headers/path/ip before
+  // classifying. If that projection is all confirmHuman ever saw, every
+  // signed-in visitor would be billed as a bot on a priced route.
+  let sawSession = null;
+  const gate = new Wayleave({ ...OPTS(), strictPricedPaths: true,
+    confirmHuman: r => { sawSession = r.session; return Boolean(r.session?.userId); } });
+  const expressReq = {
+    method: 'GET', url: '/api/premium/comps', path: '/api/premium/comps',
+    headers: { host: 'app.example.com', 'user-agent': 'Mozilla/5.0 Safari/17',
+               'accept-language': 'en-US' },
+    socket: { remoteAddress: '203.0.113.7' },
+    session: { userId: 'u_42' },
+  };
+  let nexted = false;
+  gate.express()(expressReq, { status: () => { throw new Error('paywalled a real user'); } },
+                 () => { nexted = true; });
+  assert.deepEqual(sawSession, { userId: 'u_42' }, 'callback got the express req');
+  assert.ok(nexted, 'a signed-in human passes through');
+  assert.equal(expressReq.wayleave.status, 200);
+});
+
+test('STRICT: the 402 says which check failed', () => {
+  const opts = { ...OPTS(), strictPricedPaths: true };
+  const r = new Wayleave(opts).handle(req('/api/premium/comps'), NOW);
+  assert.match(r.why, /no signature and no confirmed human/);
+});
+
 test('onEvent metering hook fires with billed amount', () => {
   const events = [];
   const opts = { ...OPTS(), onEvent: e => events.push(e),

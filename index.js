@@ -242,6 +242,8 @@ export class Wayleave {
    *   rateLimits: { [lane]: perWindow }, rateWindow: 60,
    *   pricedPaths: { pathPrefix: priceUsd },
    *   verifyPayment: (proof, ctx) => boolean | { ok, ref },
+   *   strictPricedPaths: false,
+   *   confirmHuman: (req) => boolean,
    *   trustProxy: false,
    *   replayProtection: true,
    *   maxTracked: 10000,
@@ -261,6 +263,15 @@ export class Wayleave {
     // anything this library could check about it without a settlement network
     // is something the payer could equally have made up.
     this.verifyPayment = opts.verifyPayment || null;
+
+    // The human lane is a fall-through: it means no automation tell was found,
+    // not that a person is present. Since humans are never priced, that
+    // asymmetry pays the spoofer — a browser User-Agent plus an
+    // accept-language header is the whole bypass. Strict mode inverts the
+    // burden on priced routes only: nothing crosses free without positive
+    // evidence, which is a verified signature or confirmHuman saying yes.
+    this.strictPricedPaths = opts.strictPricedPaths === true;
+    this.confirmHuman = opts.confirmHuman || null;
 
     // x-forwarded-for is written by the client unless a proxy you control
     // overwrites it. Trusting it by default hands every attacker an unlimited
@@ -300,6 +311,22 @@ export class Wayleave {
       if (xff) return xff.split(',')[0].trim();
     }
     return req.ip || 'unknown';
+  }
+
+  /**
+   * Positive evidence that a person is present, which only your application
+   * holds — a signed-in session, a cookie you set, a challenge you passed.
+   * Consulted only under strictPricedPaths, and fails closed: no callback, a
+   * throw, or anything other than true means no free crossing of a priced
+   * route. Deliberately not inferred from headers; every header a browser
+   * sends, a bot can send too.
+   */
+  _confirmedHuman(req) {
+    if (!this.confirmHuman) return false;
+    // Hand back the framework's own request when an adapter supplied one, so
+    // req.session and req.cookies are there to be checked.
+    try { return this.confirmHuman(req.raw || req) === true; }
+    catch { return false; }
   }
 
   /**
@@ -347,12 +374,23 @@ export class Wayleave {
       const n = this._bump(ident, now);
       if (n > limit) return { status: 429, why: `${n} req in window, limit ${limit}` };
     }
-    if (lane !== LANES.HUMAN) {
+    // Who crosses a priced route without paying. Normally the human lane —
+    // which anything browser-shaped reaches. Under strictPricedPaths only an
+    // application-confirmed human does, so an unsigned request that merely
+    // looks like a browser is asked to pay like the automation it may be.
+    const freeOnPriced = this.strictPricedPaths
+      ? this._confirmedHuman(req)
+      : lane === LANES.HUMAN;
+    if (!freeOnPriced) {
       for (const [prefix, price] of Object.entries(this.pricedPaths)) {
         if (req.path.startsWith(prefix)) {
           const challenge = { scheme: 'x402', price_usd: price, resource: prefix };
-          if (!paymentProof)
-            return { status: 402, why: 'payment required for agent access', challenge };
+          if (!paymentProof) {
+            const why = this.strictPricedPaths && lane === LANES.HUMAN
+              ? 'payment required: no signature and no confirmed human'
+              : 'payment required for agent access';
+            return { status: 402, why, challenge };
+          }
           const v = this._checkPayment(paymentProof, {
             price, resource: prefix, identity: ident, path: req.path, now });
           if (v.ok)
@@ -393,6 +431,10 @@ export class Wayleave {
         // The socket address, not a header. Express only populates req.ip
         // from x-forwarded-for when ITS trust proxy setting says to.
         ip: req.socket?.remoteAddress || req.connection?.remoteAddress,
+        // confirmHuman needs the session and cookies your framework parsed,
+        // none of which survive the projection above. Classification still
+        // reads only the fields it declares; this is for your callback.
+        raw: req,
       }, undefined, req.headers['x-payment-proof'] || '');
       req.wayleave = r;
       if (r.status === 200) return next();
