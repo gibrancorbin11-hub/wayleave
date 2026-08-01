@@ -144,6 +144,17 @@ export interface Decision {
 
 /** What the metering hook receives. It may throw; serving continues. */
 export interface MeterEvent {
+  /**
+   * Event schema version. Present so a meter that outlives one release can
+   * tell which shape it is reading. Currently always 1.
+   */
+  v: number;
+  /**
+   * Unique per crossing and stable across retries of the same event, so a
+   * sink that resends after a failure can be deduplicated at the far end.
+   * Namespaced per process — two instances never collide.
+   */
+  idempotencyKey: string;
   /** Unix seconds. */
   t: number;
   path: string;
@@ -161,8 +172,90 @@ export interface MeterEvent {
 /** `[pathPrefix, allow]` — first matching prefix wins. */
 export type PolicyRule = [prefix: string, allow: boolean];
 
+/**
+ * Rate-limit counters and consumed nonces. Implement this against Redis or
+ * Postgres and pass it as `store` to share state across instances.
+ *
+ * Must be synchronous — it is called on every request, and an awaited round
+ * trip per crossing costs more than the crossing earns. Put a distributed
+ * backend behind a local view that replicates asynchronously.
+ *
+ * Note the two uses differ in how much they mind approximation: fixed-window
+ * rate limiting tolerates it, replay does not. A nonce that has not yet
+ * replicated is a nonce that can be spent twice.
+ */
+export interface Store {
+  /** Requests by this identity in the current window. Returns the new count. */
+  hit(identity: string, windowSeconds: number, now: number): number;
+  hasNonce(nonce: string): boolean;
+  rememberNonce(nonce: string, expiresAt: number): void;
+}
+
+/** The default `Store`: bounded, in this process's memory, lost on restart. */
+export class MemoryStore implements Store {
+  constructor(opts?: { maxTracked?: number });
+  maxTracked: number;
+  hit(identity: string, windowSeconds: number, now: number): number;
+  hasNonce(nonce: string): boolean;
+  rememberNonce(nonce: string, expiresAt: number): void;
+}
+
+/**
+ * Where metering events go. Implement `emit` to buffer, batch, retry, and
+ * dedup on `idempotencyKey`. It must never throw into the request path.
+ */
+export interface Sink {
+  emit(event: MeterEvent): void;
+}
+
+/** The default `Sink`: calls `onEvent` and swallows whatever it throws. */
+export class DirectSink implements Sink {
+  constructor(onEvent?: (event: MeterEvent) => void);
+  emit(event: MeterEvent): void;
+}
+
+/**
+ * Key lookup. The function form is what makes rotation possible: point it at
+ * a cache your app refreshes from a JWKS endpoint on a timer. Synchronous by
+ * design — do not fetch here.
+ */
+export type KeyResolver = (directoryUrl: string) =>
+  Record<string, PublicKeyLike> | undefined;
+
+/**
+ * Checks whether a request claiming to be a known operator actually came from
+ * that operator's published addresses.
+ *
+ * Return `true` to confirm, `false` to accuse — a false claim is a stronger
+ * fraud signal than silence, so it lands in `suspected_bot` alongside an
+ * invalid signature. Return `null`/`undefined` for "cannot check", which
+ * leaves the request merely `declared_agent`: unknown is not guilty. A throw
+ * is treated as "cannot check" too, so a DNS blip never demotes real agents.
+ */
+export type AgentIPVerifier = (
+  ip: string | undefined,
+  userAgent: string
+) => boolean | null | undefined;
+
 export interface WayleaveOptions {
-  directories?: KeyDirectories;
+  /** Config object, or a resolver function for rotatable keys. */
+  directories?: KeyDirectories | KeyResolver;
+  /**
+   * Verify that a self-declared operator is on its published addresses.
+   * Without it, `declared_agent` is a claim taken at face value.
+   */
+  verifyAgentIP?: AgentIPVerifier;
+  /**
+   * Rate-limit and replay state. Defaults to a bounded `MemoryStore`, which
+   * is per-process: two instances mean two independent limiters. Supply a
+   * shared implementation to fix that without touching anything else.
+   */
+  store?: Store;
+  /**
+   * Where metering events go. Defaults to a `DirectSink` wrapping `onEvent`.
+   * Replace it with a buffering, retrying sink when losing events costs money.
+   */
+  sink?: Sink;
   /** Per-lane allow/deny rules, evaluated in order. */
   rules?: Partial<Record<Lane, PolicyRule[]>>;
   /** Max requests per identity per window, per lane. */
@@ -249,7 +342,7 @@ export function signRequest(
 export function verifySignature(
   headers: Record<string, string | string[] | undefined>,
   authority: string,
-  directories: KeyDirectories,
+  directories: KeyDirectories | KeyResolver,
   now?: number
 ): VerifyResult;
 
@@ -259,8 +352,14 @@ export function verifySignature(
  */
 export function classify(
   req: WayleaveRequest,
-  directories: KeyDirectories,
-  now?: number
+  directories: KeyDirectories | KeyResolver,
+  now?: number,
+  opts?: {
+    /** Confirms a declared operator is on its published addresses. */
+    verifyAgentIP?: AgentIPVerifier;
+    /** Source address handed to `verifyAgentIP`. */
+    ip?: string;
+  }
 ): Classification;
 
 export class Wayleave {

@@ -18,7 +18,7 @@
  */
 
 import { createPublicKey, verify as edVerify, sign as edSign,
-         createHash } from 'node:crypto';
+         createHash, randomUUID } from 'node:crypto';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -109,7 +109,27 @@ export function signRequest(headers, authority, privateKey, keyid, directoryUrl,
 }
 
 /**
+ * Key lookup, as a seam rather than an object read.
+ *
+ * `directories` may be the config object it has always been, or a function
+ * `(directoryUrl) => { keyid: key }`. The function form is what makes rotation
+ * possible without touching this file: point it at a cache your app refreshes
+ * from a JWKS endpoint on a timer.
+ *
+ * It MUST be synchronous. This runs on every signed request, and awaiting a
+ * network fetch per crossing would cost far more than the crossing earns —
+ * the sub-millisecond claim in the README is a real constraint, not a boast.
+ * Fetch on a schedule, resolve from memory.
+ */
+function asResolver(directories) {
+  if (typeof directories === 'function') return directories;
+  const d = directories || {};
+  return (directoryUrl) => d[directoryUrl];
+}
+
+/**
  * directories: { [directoryUrl]: { [keyid]: publicKey (KeyObject|PEM|raw b64) } }
+ *              or (directoryUrl) => { [keyid]: publicKey }
  * Returns { ok, agentId, reason, nonce, expires }
  *
  * `nonce` is set only when the signer supplied RFC 9421's `nonce` parameter,
@@ -157,7 +177,7 @@ export function verifySignature(h, authority, directories,
   if (expires - created > 3600)
     return { ok: false, agentId: null, reason: 'validity window too long (replay risk)' };
 
-  const dir = directories[directory];
+  const dir = asResolver(directories)(directory);
   if (!dir) return { ok: false, agentId: null, reason: `unknown key directory ${directory}` };
   let key = dir[keyid];
   if (!key) return { ok: false, agentId: null, reason: `keyid "${keyid}" not in directory` };
@@ -209,7 +229,20 @@ const AUTOMATION_TELLS = [
   ['wget', 'wget UA'],
 ];
 
-export function classify(req, directories, now) {
+/**
+ * A verifier that throws must not decide the lane. Treat the failure as
+ * "could not check" rather than "is a forger" — a DNS timeout is not evidence
+ * of fraud, and demoting real agents to the fraud lane because a lookup blipped
+ * would be a self-inflicted outage on the traffic we most want to bill.
+ */
+function tryVerifyIP(verify, ip, ua) {
+  try {
+    const r = verify(ip, ua);
+    return r === true ? true : r === false ? false : null;
+  } catch { return null; }
+}
+
+export function classify(req, directories, now, opts = {}) {
   const h = req.headers, ua = (h['user-agent'] || '').toLowerCase();
   const v = verifySignature(h, req.authority, directories, now);
   if (v.ok) return { lane: LANES.VERIFIED, agentId: v.agentId,
@@ -218,10 +251,25 @@ export function classify(req, directories, now) {
   if (h['signature'] || h['signature-input'])
     return { lane: LANES.SUSPECT, agentId: null,
              evidence: [`crypto: ${v.reason}`, 'presented invalid signature'] };
-  if (AGENT_UA.some(p => p.test(ua)))
+  if (AGENT_UA.some(p => p.test(ua))) {
+    // A UA naming a known operator is a claim, and claims are checkable when
+    // the operator publishes its addresses. Claiming to be GPTBot from an
+    // address OpenAI does not own is a stronger fraud signal than saying
+    // nothing at all — so it lands in the fraud lane, exactly like a
+    // signature that fails to verify. An unrecognised operator returns
+    // null/undefined and stays merely declared: unknown is not guilty.
+    const ipOk = opts.verifyAgentIP
+      ? tryVerifyIP(opts.verifyAgentIP, opts.ip, ua)
+      : null;
+    if (ipOk === false)
+      return { lane: LANES.SUSPECT, agentId: null,
+               evidence: [`UA claims "${ua.slice(0, 40)}"`,
+                          `but ${opts.ip || 'the client'} is not a published address for it`] };
     return { lane: LANES.DECLARED, agentId: null,
              evidence: [`self-identified in UA: "${ua.slice(0, 40)}"`,
-                        'no signature presented'] };
+                        ipOk === true ? 'source address matches published range'
+                                      : 'no signature presented'] };
+  }
   for (const [tell, why] of AUTOMATION_TELLS)
     if (ua.includes(tell))
       return { lane: LANES.SUSPECT, agentId: null, evidence: [why] };
@@ -230,6 +278,77 @@ export function classify(req, directories, now) {
     return { lane: LANES.SUSPECT, agentId: null,
              evidence: ['browser UA without accept-language'] };
   return { lane: LANES.HUMAN, agentId: null, evidence: ['browser-shaped request'] };
+}
+
+// ── state ───────────────────────────────────────────────────────────────
+
+/**
+ * Rate-limit counters and consumed nonces, in this process's memory.
+ *
+ * This is the seam that a shared backend replaces. Implement the same four
+ * methods against Redis or Postgres and pass it as `store` — the gate does not
+ * know the difference. Two properties any replacement must preserve:
+ *
+ *   Synchronous. Called on every request. An awaited round trip per crossing
+ *   is a worse tax than the crossing is worth; a distributed store belongs
+ *   behind a local view that replicates asynchronously.
+ *
+ *   Bounded. `maxTracked` exists because an attacker who can mint identities
+ *   can otherwise mint memory. Evicting the oldest keeps recent arrivals
+ *   counted, which is the useful half.
+ *
+ * A distributed store trades exactness for reach, and the two uses differ in
+ * how much they mind. Fixed-window rate limiting tolerates approximate counts.
+ * Replay does NOT: a nonce that has not replicated yet is a nonce that can be
+ * spent twice. Say which you chose in your deployment notes.
+ */
+export class MemoryStore {
+  constructor({ maxTracked = 10000 } = {}) {
+    this.maxTracked = maxTracked;
+    this._hits = new Map();
+    this._window = -1;
+    this._seen = new Map();
+  }
+
+  /** Count this identity's requests in the current fixed window. */
+  hit(identity, windowSeconds, now) {
+    const w = Math.floor(now / windowSeconds);
+    if (w !== this._window) {
+      this._window = w;
+      this._hits.clear();
+      for (const [n, exp] of this._seen) if (exp <= now) this._seen.delete(n);
+    }
+    if (this._hits.size >= this.maxTracked && !this._hits.has(identity))
+      this._hits.delete(this._hits.keys().next().value);
+    const n = (this._hits.get(identity) || 0) + 1;
+    this._hits.set(identity, n);
+    return n;
+  }
+
+  hasNonce(nonce) { return this._seen.has(nonce); }
+
+  rememberNonce(nonce, expiresAt) {
+    if (this._seen.size >= this.maxTracked)
+      this._seen.delete(this._seen.keys().next().value);
+    this._seen.set(nonce, expiresAt);
+  }
+}
+
+/**
+ * Where metering events go. The default hands each one straight to `onEvent`
+ * and swallows anything it throws, because serving must not depend on billing.
+ *
+ * That swallow is correct for uptime and lossy for revenue, which is the
+ * trade a durable sink is meant to change: buffer locally, flush in batches,
+ * retry on failure, and dedup on `idempotencyKey` at the far end. Implement
+ * `emit(event)` and pass it as `sink`. Whatever you build, it must not throw
+ * into the request path — this class is the last line that guarantees that.
+ */
+export class DirectSink {
+  constructor(onEvent) { this.onEvent = onEvent || (() => {}); }
+  emit(event) {
+    try { this.onEvent(event); } catch { /* metering must never break serving */ }
+  }
 }
 
 // ── the gate ────────────────────────────────────────────────────────────
@@ -281,23 +400,40 @@ export class Wayleave {
     this.replayProtection = opts.replayProtection !== false;
     this.maxTracked = opts.maxTracked || 10000;
 
-    this._hits = new Map();     // identity -> count, cleared each window
-    this._window = -1;
-    this._seen = new Map();     // signature nonce -> expiry, pruned on rollover
+    // Verifies that a UA claiming to be a known operator comes from that
+    // operator's published addresses. Absent, a declared agent is taken at
+    // its word — which is all "declared" ever meant.
+    this.verifyAgentIP = opts.verifyAgentIP || null;
+
+    // State and metering are interfaces, not implementations. Swap either for
+    // a shared or durable one without the gate noticing. See MemoryStore.
+    this.store = opts.store || new MemoryStore({ maxTracked: this.maxTracked });
+    this.sink = opts.sink || new DirectSink(this.onEvent);
+
+    // Identifies events from this process so a retrying sink can dedup. A
+    // counter alone would collide across instances; a timestamp alone would
+    // collide within a millisecond.
+    this._instance = randomUUID();
+    this._seq = 0;
   }
 
   /** req: { method, path, authority, headers, ip } → decision */
   handle(req, now = Math.floor(Date.now() / 1000), paymentProof = '') {
-    const c = classify(req, this.directories, now);
+    const c = classify(req, this.directories, now,
+                       { verifyAgentIP: this.verifyAgentIP, ip: this._client(req) });
     const { lane, agentId, evidence } = c;
     const ident = agentId || `${lane}:${this._client(req)}`;
     const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
     const d = this._decide(req, lane, ident, now, proof, c);
-    const entry = { t: now, path: req.path, lane, identity: ident,
+    // v is the event schema version. A meter that outlives one release has to
+    // know which shape it is reading; adding this after receipts exist in the
+    // wild would mean reconciling two formats forever.
+    const entry = { v: 1, idempotencyKey: `${this._instance}:${this._seq++}`,
+                    t: now, path: req.path, lane, identity: ident,
                     status: d.status, why: d.why, evidence,
                     billedUsd: d.billed || 0 };
     if (d.paymentRef) entry.paymentRef = d.paymentRef;
-    try { this.onEvent(entry); } catch { /* metering must never break serving */ }
+    this.sink.emit(entry);
     return { lane, identity: ident, ...d, evidence };
   }
 
@@ -329,26 +465,9 @@ export class Wayleave {
     catch { return false; }
   }
 
-  /**
-   * Fixed-window counting. On rollover the whole table is dropped — last
-   * window's counts are meaningless anyway, and it keeps memory bounded to
-   * one window's worth of identities instead of growing forever.
-   */
+  /** Fixed-window counting, delegated to whichever store is configured. */
   _bump(ident, now) {
-    const w = Math.floor(now / this.rateWindow);
-    if (w !== this._window) {
-      this._window = w;
-      this._hits.clear();
-      for (const [n, exp] of this._seen) if (exp <= now) this._seen.delete(n);
-    }
-    // Hard ceiling so a flood of distinct identities inside a single window
-    // cannot exhaust memory. Evicting the oldest keeps the newest arrivals
-    // counted; the durable fix is shared state, not a bigger Map.
-    if (this._hits.size >= this.maxTracked && !this._hits.has(ident))
-      this._hits.delete(this._hits.keys().next().value);
-    const n = (this._hits.get(ident) || 0) + 1;
-    this._hits.set(ident, n);
-    return n;
+    return this.store.hit(ident, this.rateWindow, now);
   }
 
   _decide(req, lane, ident, now, paymentProof, c) {
@@ -363,11 +482,9 @@ export class Wayleave {
     // Only signers that send a nonce can be held to single use; see
     // verifySignature for why a signature hash is not a safe substitute.
     if (this.replayProtection && c && c.nonce) {
-      if (this._seen.has(c.nonce))
+      if (this.store.hasNonce(c.nonce))
         return { status: 403, why: 'signature already used (replay)' };
-      if (this._seen.size >= this.maxTracked)
-        this._seen.delete(this._seen.keys().next().value);
-      this._seen.set(c.nonce, c.sigExpires || now + this.rateWindow);
+      this.store.rememberNonce(c.nonce, c.sigExpires || now + this.rateWindow);
     }
     const limit = this.rateLimits[lane];
     if (limit) {

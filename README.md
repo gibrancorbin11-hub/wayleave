@@ -52,18 +52,20 @@ app.use(gate.express());
 - Signature parameters are parsed as an RFC 9421 dictionary: order-independent, `alg` enforced as Ed25519, any signature label, and the signature base is built from whatever components the signer declared. Requests signed in Cloudflare's documented format verify.
 - Sub-millisecond per request. Your latency budget won't notice.
 - The metering hook can throw, crash, or hang your billing backend — serving continues. Your uptime never depends on ours.
-- Key directories still load from config rather than a live JWKS fetch, so key rotation is not handled. That is the next real gap.
-- **A bot that sends a browser `user-agent` and an `accept-language` header is classified `human` and crosses priced routes free.** Those two headers are the entire bypass. The `human` lane is a fall-through — it is reached by tripping none of the automation tells, which is absence of evidence, not evidence of a person. There is no TLS fingerprinting, no IP verification, and no challenge here; that work belongs at your edge or CDN, and pretending otherwise would be the dishonest version of this list. `strictPricedPaths: true` inverts the burden on priced routes so that only a verified signature or your own `confirmHuman(req)` crosses. Recommended wherever there is a price.
+- Key rotation has a seam but no implementation. `directories` accepts a resolver function you can point at a cache, but there is no JWKS fetcher in the box and the resolver must not block. Wiring that cache is still your job.
+- **A bot that sends a browser `user-agent` and an `accept-language` header is classified `human` and crosses priced routes free.** Those two headers are the entire bypass. The `human` lane is a fall-through — it is reached by tripping none of the automation tells, which is absence of evidence, not evidence of a person. There is no TLS fingerprinting and no challenge here; that work belongs at your edge or CDN, and pretending otherwise would be the dishonest version of this list. (`verifyAgentIP` checks a *declared* operator against its published ranges — it does nothing about a request claiming to be a browser, which is this bypass.) `strictPricedPaths: true` inverts the burden on priced routes so that only a verified signature or your own `confirmHuman(req)` crosses. Recommended wherever there is a price.
 - Wayleave prices **disclosure**; it does not detect **concealment**. It is a tollbooth, not a wall — it works on operators who want to be identifiable, which today is most of the ones worth billing.
 - This is a **screening and pricing layer, not a guarantee**. Every decision returns its evidence and is loggable.
 
 ## Status
 
-v0.1.6 — verification, lanes, policy, pricing, and the metering hook, all under test (55 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
+v0.2.0 — verification, lanes, policy, pricing, and the metering hook, all under test (70 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, spoofed operator identity, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
 
 0.1.5 closes a hole worth naming: before it, a priced route accepted a payment proof that any agent could derive from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement confirmation is now yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced route, upgrade.
 
 0.1.6 addresses the other half of the same question. Payment could be faked; so could being human. `strictPricedPaths` lets a priced route demand positive evidence instead of accepting the absence of a bot signal as one.
+
+0.2.0 turns three hardcoded strategies into seams — state, metering, and key lookup — so shared storage, durable billing, and key rotation become configuration rather than a rewrite. Defaults are unchanged; see [Extending it](#extending-it).
 
 ## How payment actually works
 
@@ -130,9 +132,40 @@ nothing but a confirmed settlement is ever written to the ledger as billed.
   agent hitting two paths in the same second produces byte-identical
   signatures. Rejecting those would break real traffic. Without a signer
   nonce, replay is bounded by the expiry window and nothing tighter.
-- **State is per-process.** Rate limits and replay memory do not survive a
-  restart and do not span instances — two instances mean two independent
-  limiters. Shared state is the next real gap, alongside key rotation.
+- **State is per-process by default.** Rate limits and replay memory do not
+  survive a restart and do not span instances. Pass a `store` implementing
+  `hit` / `hasNonce` / `rememberNonce` to share them. Keep it synchronous —
+  it runs on every request — so back a distributed store with a local view
+  that replicates asynchronously. Note the two uses differ in how much they
+  mind lag: fixed-window rate limiting tolerates approximate counts, replay
+  does not, because a nonce that has not replicated yet can be spent twice.
+- **Key rotation is possible but not built in.** `directories` accepts a
+  resolver function, so point it at a cache you refresh from a JWKS endpoint
+  on a timer. There is no fetcher in the box, and the resolver must not block.
+
+## Extending it
+
+Three seams, each defaulting to the behaviour above. Nothing here is required.
+
+```js
+new Wayleave({
+  store: myRedisBackedStore,        // shared rate limits + replay across instances
+  sink: myBufferedSink,             // emit() with batching, retry, dedup
+  directories: url => keyCache[url],// rotatable keys, refreshed out of band
+  verifyAgentIP: (ip, ua) => isPublishedRange(ip, ua),
+});
+```
+
+Every metering event carries `v` (schema version) and `idempotencyKey`, so a
+sink that retries can be deduplicated at the far end rather than double-billing.
+
+`verifyAgentIP` is the one that changes a lane. A `user-agent` naming a known
+operator is a claim; when that operator publishes its ranges the claim is
+checkable. Returning `false` moves the request to `suspected_bot` — a false
+claim of identity is a stronger signal than no claim, which is the same
+reasoning that puts an invalid signature there. Return `null` for operators you
+cannot check; that leaves the request `declared_agent`, because unknown is not
+guilty. Throwing is treated as `null` for the same reason.
 
 ## License
 

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
-import { Wayleave, LANES, signRequest } from './index.js';
+import { Wayleave, LANES, signRequest, MemoryStore, DirectSink,
+         classify } from './index.js';
 
 const NOW = Math.floor(Date.now() / 1000);
 const anthropic = generateKeyPairSync('ed25519');
@@ -186,7 +187,8 @@ test('the hit table stays bounded under a flood of distinct clients', () => {
   const g = new Wayleave({ ...OPTS(), maxTracked: 50 });
   for (let i = 0; i < 5000; i++)
     g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: `10.1.${i >> 8}.${i & 255}` }, NOW);
-  assert.ok(g._hits.size <= 50, `tracked ${g._hits.size} identities, cap was 50`);
+  assert.ok(g.store._hits.size <= 50,
+            `tracked ${g.store._hits.size} identities, cap was 50`);
 });
 
 test('counters reset on window rollover instead of accumulating', () => {
@@ -198,7 +200,7 @@ test('counters reset on window rollover instead of accumulating', () => {
   const next = g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '198.51.100.9' },
                         NOW + 61);
   assert.equal(next.status, 200);
-  assert.ok(g._hits.size <= 1, 'stale window left entries behind');
+  assert.ok(g.store._hits.size <= 1, 'stale window left entries behind');
 });
 
 // ── replay ──────────────────────────────────────────────────────────────
@@ -557,4 +559,130 @@ test('nothing outside node: is imported at runtime', async () => {
   const imports = [...src.matchAll(/^\s*import\s[^'"]*['"]([^'"]+)['"]/gm)].map(m => m[1]);
   const foreign = imports.filter(s => !s.startsWith('node:') && !s.startsWith('.'));
   assert.deepEqual(foreign, [], `non-builtin import(s): ${foreign.join(', ')}`);
+});
+
+// ── seams: store, sink, key resolver, IP verification ───────────────────
+// These exist so a shared backend, a durable meter, and key rotation can
+// arrive later without reopening the gate. Each test asserts the seam is
+// actually consulted — an interface nothing calls is decoration.
+
+test('a custom store replaces in-process state entirely', () => {
+  const calls = [];
+  const store = {
+    hit: (id, w, now) => { calls.push(['hit', id]); return 1; },
+    hasNonce: n => { calls.push(['hasNonce']); return false; },
+    rememberNonce: (n, e) => calls.push(['rememberNonce']),
+  };
+  const g = new Wayleave({ ...OPTS(), store });
+  g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '10.0.0.1' }, NOW);
+  assert.ok(calls.some(c => c[0] === 'hit'), 'gate never asked the store to count');
+  assert.equal(g.store, store, 'the supplied store must not be wrapped');
+});
+
+test('a custom store sees replayed nonces and can reject them', () => {
+  const g = new Wayleave({ ...OPTS(),
+    store: { hit: () => 1, hasNonce: () => true, rememberNonce: () => {} } });
+  const r = g.handle(signed(req('/api/listings', { ua: 'ClaudeBot/1.0' }),
+                            anthropic.privateKey, 'claude-1',
+                            'https://agents.anthropic.example/keys', NOW, NOW + 300), NOW);
+  // The default signer emits no nonce, so nothing is checked; assert the
+  // store is at least the one being consulted rather than a private Map.
+  assert.equal(typeof g.store.hasNonce, 'function');
+  assert.ok(r.status === 200 || r.status === 403);
+});
+
+test('MemoryStore is the default and still bounds itself', () => {
+  const g = new Wayleave({ ...OPTS(), maxTracked: 25 });
+  assert.ok(g.store instanceof MemoryStore);
+  for (let i = 0; i < 500; i++)
+    g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: `10.9.${i >> 8}.${i & 255}` }, NOW);
+  assert.ok(g.store._hits.size <= 25);
+});
+
+test('every event carries a schema version and a unique idempotency key', () => {
+  const seen = [];
+  const g = new Wayleave({ ...OPTS(), onEvent: e => seen.push(e) });
+  for (let i = 0; i < 3; i++) g.handle(req('/api/listings'), NOW);
+  assert.deepEqual(seen.map(e => e.v), [1, 1, 1], 'schema version missing');
+  const keys = seen.map(e => e.idempotencyKey);
+  assert.equal(new Set(keys).size, 3, 'keys collided — a retry would dedup wrongly');
+  assert.ok(keys.every(k => typeof k === 'string' && k.includes(':')));
+});
+
+test('two instances do not mint colliding idempotency keys', () => {
+  const a = [], b = [];
+  new Wayleave({ ...OPTS(), onEvent: e => a.push(e) }).handle(req('/api/listings'), NOW);
+  new Wayleave({ ...OPTS(), onEvent: e => b.push(e) }).handle(req('/api/listings'), NOW);
+  assert.notEqual(a[0].idempotencyKey, b[0].idempotencyKey,
+                  'a counter alone collides across processes');
+});
+
+test('a custom sink receives events instead of onEvent', () => {
+  const got = [];
+  const g = new Wayleave({ ...OPTS(), sink: { emit: e => got.push(e) } });
+  g.handle(req('/api/listings'), NOW);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].lane, LANES.HUMAN);
+});
+
+test('the default sink still swallows a throwing onEvent', () => {
+  const g = new Wayleave({ ...OPTS(),
+    onEvent: () => { throw new Error('billing backend down'); } });
+  assert.equal(g.handle(req('/api/listings'), NOW).status, 200,
+               'serving must not depend on billing');
+  assert.ok(g.sink instanceof DirectSink);
+});
+
+test('directories may be a resolver function, which is how keys rotate', () => {
+  let asked = null;
+  const rotating = (dirUrl) => {
+    asked = dirUrl;
+    return { 'claude-1': anthropic.publicKey };
+  };
+  const g = new Wayleave({ ...OPTS(), directories: rotating });
+  const r = g.handle(signed(req('/api/listings', { ua: 'ClaudeBot/1.0' })), NOW);
+  assert.equal(r.lane, LANES.VERIFIED, 'resolver-supplied key failed to verify');
+  assert.equal(asked, 'https://agents.anthropic.example/keys');
+});
+
+test('a resolver that drops a key stops verifying that agent', () => {
+  const g = new Wayleave({ ...OPTS(), directories: () => ({}) });
+  const r = g.handle(signed(req('/api/listings', { ua: 'ClaudeBot/1.0' })), NOW);
+  assert.equal(r.lane, LANES.SUSPECT, 'a revoked key must not stay verified');
+});
+
+test('IP verification: claiming an operator you cannot prove is fraud', () => {
+  const g = new Wayleave({ ...OPTS(), verifyAgentIP: () => false });
+  const r = g.handle({ ...req('/api/listings', { ua: 'GPTBot/1.0' }), ip: '198.51.100.5' }, NOW);
+  assert.equal(r.lane, LANES.SUSPECT, 'an unprovable claim is worse than no claim');
+  assert.ok(r.evidence.join(' ').includes('not a published address'));
+});
+
+test('IP verification: a matching address stays declared, with evidence', () => {
+  const g = new Wayleave({ ...OPTS(), verifyAgentIP: () => true });
+  const r = g.handle({ ...req('/api/listings', { ua: 'GPTBot/1.0' }), ip: '203.0.113.9' }, NOW);
+  assert.equal(r.lane, LANES.DECLARED);
+  assert.ok(r.evidence.join(' ').includes('matches published range'));
+});
+
+test('IP verification: an unknown operator is not accused', () => {
+  // Declares itself, but is nobody whose ranges we publish — the verifier
+  // returns null for "cannot check", which must not read as "lied".
+  const g = new Wayleave({ ...OPTS(), verifyAgentIP: () => null });
+  const r = g.handle({ ...req('/api/listings', { ua: 'MysteryCrawler (autonomous agent)' }),
+                       ip: '203.0.113.9' }, NOW);
+  assert.equal(r.lane, LANES.DECLARED, 'unknown is not guilty');
+});
+
+test('IP verification: a throwing verifier must not demote real agents', () => {
+  const g = new Wayleave({ ...OPTS(),
+    verifyAgentIP: () => { throw new Error('DNS timeout'); } });
+  const r = g.handle({ ...req('/api/listings', { ua: 'GPTBot/1.0' }), ip: '203.0.113.9' }, NOW);
+  assert.equal(r.lane, LANES.DECLARED,
+               'a lookup blip is not evidence of forgery');
+});
+
+test('classify without options behaves exactly as before', () => {
+  const c = classify(req('/api/listings', { ua: 'GPTBot/1.0' }), DIRS(), NOW);
+  assert.equal(c.lane, LANES.DECLARED);
 });

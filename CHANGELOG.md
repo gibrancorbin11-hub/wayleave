@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.2.0
+
+**Interfaces where there were implementations. No behaviour changes.**
+
+Three things this library does were hardcoded to one strategy: state lived in
+a `Map`, metering called a function, keys were read out of an object. Each is
+now a seam with today's behaviour as the default, so a shared backend, a
+durable meter, and key rotation can arrive as configuration rather than as
+surgery on the gate. Everything below is additive — omit all of it and 0.2.0
+behaves exactly as 0.1.6, which is what the suite asserts.
+
+- **`store`** — rate-limit counters and consumed nonces behind
+  `hit` / `hasNonce` / `rememberNonce`. Defaults to the exported `MemoryStore`,
+  bounded and per-process as before. A Redis or Postgres implementation is now
+  roughly forty lines that the gate never sees. Deliberately synchronous: this
+  runs on every request, and an awaited round trip per crossing costs more than
+  the crossing earns. Put a distributed backend behind a local view.
+- **`sink`** — metering events go to an object with `emit`, defaulting to the
+  exported `DirectSink` that calls `onEvent` and swallows what it throws.
+  Buffering, batching and retry now have somewhere to live.
+- **Every event carries `v` and `idempotencyKey`.** A schema version so a meter
+  outliving one release knows what it is reading, and a per-crossing key so a
+  retrying sink can be deduplicated at the far end. Both are cheap now and
+  expensive after receipts exist in the wild — you would be reconciling two
+  formats forever.
+- **`directories` may be a resolver function.** Point it at a cache your app
+  refreshes from a JWKS endpoint on a timer and keys rotate without a restart.
+  The config-object form is unchanged. Synchronous for the same reason as the
+  store: fetch on a schedule, resolve from memory.
+- **`verifyAgentIP`** — the one genuinely new capability. A `user-agent` naming
+  a known operator is a claim, and claims are checkable when that operator
+  publishes its ranges. Claiming to be GPTBot from an address OpenAI does not
+  own now lands in `suspected_bot`, on the same reasoning that puts a failed
+  signature there. Returning null, or throwing, means "cannot check" and leaves
+  the request merely `declared_agent` — unknown is not guilty, and a DNS blip
+  must never demote the agents we most want to bill.
+- Tests: 56 → 70.
+
+What this release deliberately does NOT include: a Redis backend, a durable
+queue, a live JWKS fetcher. Those are implementations, and implementations
+should follow a customer rather than precede one.
+
 ## 0.1.6
 
 **The free lane was whatever failed to look automated. Now you can demand
