@@ -1,0 +1,21 @@
+# Security headers, duplicated from netlify.toml on purpose.
+#
+# The toml [[headers]] block was not being applied to this site: it declares
+# six headers in one rule, and only four ever appeared on the wire, on every
+# content type. A rule is applied or it isn't — four-sixths means the applied
+# rule was coming from somewhere else. This file lives inside the publish
+# directory, which removes every question about base directories and build
+# configuration, and it is the form Netlify resolves last.
+#
+# Keep the two in sync. If you add an external host anywhere — a CDN, an API,
+# a font provider, an analytics script — the CSP below will block it silently.
+# Add it to the matching directive here AND in netlify.toml, then re-run
+# `node ops/csp-preview.mjs` before deploying.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests
