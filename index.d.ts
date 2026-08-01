@@ -53,6 +53,13 @@ export interface WayleaveRequest {
   /** Host authority the signature was computed over, e.g. "example.com". */
   authority: string;
   headers: Record<string, string | string[] | undefined>;
+  /**
+   * The connection's source address, e.g. `req.socket.remoteAddress`. Used to
+   * key rate limits for unsigned traffic. Supply it: without it every
+   * anonymous client shares one bucket. Never taken from a header unless
+   * `trustProxy` is on.
+   */
+  ip?: string;
 }
 
 export interface VerifyResult {
@@ -61,6 +68,15 @@ export interface VerifyResult {
   agentId: string | null;
   /** Human-readable reason, safe to log. */
   reason: string;
+  /**
+   * Single-use token, set only when the signer supplied RFC 9421's `nonce`
+   * parameter. Null otherwise — a signature hash is NOT a safe substitute,
+   * because deterministic Ed25519 over `@authority` alone makes two
+   * legitimate same-second requests byte-identical.
+   */
+  nonce?: string | null;
+  /** Unix seconds the signature stops being valid. */
+  expires?: number;
 }
 
 export interface Classification {
@@ -68,7 +84,33 @@ export interface Classification {
   agentId: string | null;
   /** Why this lane was chosen. Loggable. */
   evidence: string[];
+  /** Present only for verified agents whose signer sent a nonce. */
+  nonce?: string | null;
+  sigExpires?: number;
 }
+
+/** What `verifyPayment` is told about the crossing it is confirming. */
+export interface PaymentContext {
+  /** Price in USD for the matched resource. */
+  price: number;
+  /** The priced path prefix that matched. */
+  resource: string;
+  /** Cryptographic agent identity when verified, else lane:address. */
+  identity: string;
+  path: string;
+  /** Unix seconds. */
+  now: number;
+}
+
+/**
+ * Your answer to "did this actually settle?". Return `true`, or an object
+ * carrying the settlement reference so it reaches the ledger. Anything else
+ * — including a throw — denies passage.
+ */
+export type PaymentVerifier = (
+  proof: string,
+  ctx: PaymentContext
+) => boolean | { ok: boolean; ref?: string; reason?: string };
 
 /** x402-shaped payment challenge returned with a 402. */
 export interface PaymentChallenge {
@@ -88,8 +130,10 @@ export interface Decision {
   evidence: string[];
   /** Present only on 402. */
   challenge?: PaymentChallenge;
-  /** Present only when a priced request was paid. */
+  /** Present only when `verifyPayment` confirmed settlement. */
   billed?: number;
+  /** Settlement reference returned by your verifier, if any. */
+  paymentRef?: string | null;
 }
 
 /** What the metering hook receives. It may throw; serving continues. */
@@ -102,7 +146,10 @@ export interface MeterEvent {
   status: number;
   why: string;
   evidence: string[];
+  /** Zero unless settlement was confirmed. Never records an unpaid crossing. */
   billedUsd: number;
+  /** Settlement reference from your verifier, when it supplied one. */
+  paymentRef?: string;
 }
 
 /** `[pathPrefix, allow]` — first matching prefix wins. */
@@ -118,6 +165,29 @@ export interface WayleaveOptions {
   rateWindow?: number;
   /** Path prefix -> price in USD. Non-human lanes get 402 here. */
   pricedPaths?: Record<string, number>;
+  /**
+   * Confirms a payment actually settled. **Without this, every priced route
+   * stays 402 forever** — deny is the only safe default, since the proof is a
+   * string the payer wrote. Wire it to your facilitator, not to a comparison
+   * against the challenge you just issued.
+   */
+  verifyPayment?: PaymentVerifier;
+  /**
+   * Believe `x-forwarded-for` for the client address. Default false. Turn on
+   * ONLY behind a proxy you control that overwrites the header — otherwise
+   * clients mint themselves unlimited rate-limit buckets.
+   */
+  trustProxy?: boolean;
+  /**
+   * Reject a second use of a signature whose signer supplied a nonce.
+   * Default true. In-process only: it does not span instances or restarts.
+   */
+  replayProtection?: boolean;
+  /**
+   * Ceiling on in-memory identities and nonces. Default 10000. Bounds memory
+   * under a flood of distinct clients; oldest entries are evicted.
+   */
+  maxTracked?: number;
   /**
    * Metering hook, called once per request. Exceptions are swallowed —
    * billing must never break serving.

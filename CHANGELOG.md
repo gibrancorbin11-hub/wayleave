@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.1.5
+
+**Security. Upgrade if you price any route.**
+
+The payment path trusted a string the payer wrote. `paymentProof` was compared
+against `paid:<resource>:<price>` — every part of which the agent had just been
+handed in the 402 challenge. An agent that echoed it back got free passage on
+every priced route, and the metering hook recorded `billedUsd` for money that
+never moved. A ledger of settlements that never settled is worse than no ledger.
+
+- **`verifyPayment(proof, ctx)` is now the only way to turn a 402 into a 200,
+  and it defaults to deny.** Configure nothing and priced routes stay 402
+  forever. Your verifier receives the price, resource, identity, and path, and
+  may return a settlement `ref` that lands in the ledger. A verifier that
+  throws denies passage; nothing but a confirmed settlement is booked as
+  billed. This is the "pluggable payment check" the docs previously claimed.
+- **Rate limits no longer key on `x-forwarded-for`.** It is client-written
+  unless a proxy you own overwrites it, so rotating it minted an unlimited
+  supply of fresh buckets — the limiter did not function against the traffic
+  it exists to limit. Identity now comes from the connection address
+  (`req.ip`; the Express adapter supplies it). Opt back in with
+  `trustProxy: true` only behind a proxy you control.
+- **In-memory state is bounded.** The hit table grew forever and, combined
+  with the above, let an attacker exhaust the host's memory. Counters now
+  clear on window rollover, with a `maxTracked` ceiling (default 10,000) on
+  both hit and nonce tables.
+- **Replay is rejected for signers that supply RFC 9421's `nonce`** — one
+  signature, one crossing. Deliberately NOT keyed on signature bytes:
+  Ed25519 is deterministic and the profile covers only `@authority`, so two
+  legitimate same-second requests are byte-identical and would be falsely
+  refused. Without a signer nonce, replay stays bounded by the expiry window.
+- Tests: 29 → 44, including guessed and echoed payment proofs, a throwing
+  verifier, rotated forwarding headers, memory flooding, window rollover, and
+  a nonce-free signer that must not be accused of replaying.
+
 ## 0.1.4
 
 **Interop fix. Previous versions rejected legitimately signed traffic.**

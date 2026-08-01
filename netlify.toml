@@ -5,9 +5,26 @@
 # data-netlify="true" form at deploy time and counts submissions in
 # Forms, which is where the Phase 1 threshold gets measured.
 
+# There is no server, no DB, no auth, and no secret here — the waitlist form
+# posts to Netlify and nothing else. So the residual risk is XSS, and the CSP
+# is the second layer. Its real teeth are connect-src and form-action: an
+# injected script can't POST a signup list anywhere but back to this origin.
+#
+# Everything is self-hosted on purpose — fonts included — so no external host
+# appears below. ADD ONE AND THE CSP WILL BLOCK IT until it's listed here;
+# that's the point, but it also means a feature that breaks right after you
+# add a fetch() or a CDN link is usually this file, not your code.
+#
+# style-src keeps 'unsafe-inline' because the markup uses inline style=""
+# attributes; script-src deliberately does NOT — app.js is a real file, and
+# it must stay that way for this to hold.
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"

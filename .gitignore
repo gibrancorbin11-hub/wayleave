@@ -7,3 +7,5 @@ npm-debug.log*
 *.zip
 wayleave-landing.html
 ops/
+# Points at ops/csp-preview.mjs, which is ignored — local tooling, not shipped.
+.claude/

@@ -40,6 +40,13 @@ function signed(r, key = anthropic.privateKey, keyid = 'claude-1',
   return r;
 }
 
+/** A signer that supplies RFC 9421's nonce — what makes single-use possible. */
+function nonceSigned(r, nonce, created = NOW, expires = NOW + 300) {
+  return foreignSign(r,
+    `("@authority" "signature-agent");created=${created};keyid="claude-1";` +
+    `alg="ed25519";expires=${expires};nonce="${nonce}";tag="web-bot-auth"`);
+}
+
 // ── lanes ───────────────────────────────────────────────────────────────
 
 test('plain browser → human, 200', () => {
@@ -146,6 +153,84 @@ test('declared agent rate limit trips at request 11', () => {
   assert.equal(statuses[9], 200); assert.equal(statuses[10], 429);
 });
 
+test('rotating x-forwarded-for does NOT mint fresh rate-limit buckets', () => {
+  // The whole point of a rate limit is that the subject cannot choose its own
+  // identity. x-forwarded-for is written by the client unless a proxy you own
+  // overwrites it, so by default it must not be believed.
+  const g = new Wayleave(OPTS());
+  const statuses = [];
+  for (let i = 0; i < 12; i++)
+    statuses.push(g.handle({ ...req('/api/x', { ua: 'ShopBot agent',
+      extra: { 'x-forwarded-for': `10.0.0.${i}` } }), ip: '203.0.113.7' }, NOW).status);
+  assert.equal(statuses[10], 429, 'header rotation bought unlimited requests');
+});
+
+test('trustProxy:true honours the proxy-supplied client address', () => {
+  const g = new Wayleave({ ...OPTS(), trustProxy: true });
+  const statuses = [];
+  for (let i = 0; i < 12; i++)
+    statuses.push(g.handle(req('/api/x', { ua: 'ShopBot agent',
+      extra: { 'x-forwarded-for': '9.9.9.9, 10.0.0.1' } }), NOW).status);
+  assert.equal(statuses[10], 429);
+});
+
+test('distinct clients are still limited independently', () => {
+  const g = new Wayleave(OPTS());
+  for (let i = 0; i < 11; i++)
+    g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '198.51.100.1' }, NOW);
+  const other = g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '198.51.100.2' }, NOW);
+  assert.equal(other.status, 200, 'one noisy client must not deny everyone else');
+});
+
+test('the hit table stays bounded under a flood of distinct clients', () => {
+  const g = new Wayleave({ ...OPTS(), maxTracked: 50 });
+  for (let i = 0; i < 5000; i++)
+    g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: `10.1.${i >> 8}.${i & 255}` }, NOW);
+  assert.ok(g._hits.size <= 50, `tracked ${g._hits.size} identities, cap was 50`);
+});
+
+test('counters reset on window rollover instead of accumulating', () => {
+  const g = new Wayleave(OPTS());
+  for (let i = 0; i < 11; i++)
+    g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '198.51.100.9' }, NOW);
+  assert.equal(g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '198.51.100.9' },
+                        NOW).status, 429);
+  const next = g.handle({ ...req('/api/x', { ua: 'ShopBot agent' }), ip: '198.51.100.9' },
+                        NOW + 61);
+  assert.equal(next.status, 200);
+  assert.ok(g._hits.size <= 1, 'stale window left entries behind');
+});
+
+// ── replay ──────────────────────────────────────────────────────────────
+
+test('a captured nonce-bearing request cannot be replayed', () => {
+  const g = new Wayleave({ ...OPTS(), verifyPayment: () => true });
+  const captured = nonceSigned(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' }), 'n-001');
+  const first = g.handle(captured, NOW, 'tx');
+  const replay = g.handle(captured, NOW, 'tx');
+  assert.equal(first.status, 200);
+  assert.equal(replay.status, 403, 'one signature, one crossing');
+  assert.match(replay.why, /replay/);
+});
+
+test('a fresh nonce from the same agent still passes', () => {
+  const g = new Wayleave({ ...OPTS(), verifyPayment: () => true });
+  g.handle(nonceSigned(req('/api/premium/a', { ua: 'ClaudeBot/1.0' }), 'n-1'), NOW, 'tx');
+  const second = g.handle(nonceSigned(req('/api/premium/b', { ua: 'ClaudeBot/1.0' }), 'n-2'),
+                          NOW, 'tx');
+  assert.equal(second.status, 200);
+});
+
+test('a signer with no nonce is not falsely accused of replaying', () => {
+  // Ed25519 is deterministic and the profile covers only @authority, so two
+  // legitimate same-second requests carry byte-identical signatures.
+  const g = new Wayleave(OPTS());
+  const a = g.handle(signed(req('/api/one', { ua: 'ClaudeBot/1.0' })), NOW);
+  const b = g.handle(signed(req('/api/two', { ua: 'ClaudeBot/1.0' })), NOW);
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200, 'rejected real traffic as a replay');
+});
+
 // ── monetization ────────────────────────────────────────────────────────
 
 test('agent on priced path, unpaid → 402 with challenge', () => {
@@ -154,11 +239,73 @@ test('agent on priced path, unpaid → 402 with challenge', () => {
   assert.equal(r.challenge.price_usd, 0.05);
 });
 
-test('same path with payment proof → 200 and billed', () => {
+test('a settled payment, confirmed by the verifier → 200 and billed', () => {
+  const opts = { ...OPTS(), verifyPayment: p => p === 'settled-tx-9f3' };
+  const r = new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW,
+    'settled-tx-9f3');
+  assert.equal(r.status, 200); assert.equal(r.billed, 0.05);
+});
+
+// ── the payment path is adversarial: the proof is written by the payer ───
+
+test('no verifyPayment configured → proof is worthless, still 402', () => {
   const r = new Wayleave(OPTS()).handle(
     signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW,
     'paid:/api/premium:0.05');
-  assert.equal(r.status, 200); assert.equal(r.billed, 0.05);
+  assert.equal(r.status, 402, 'default must be deny, never a string compare');
+  assert.equal(r.billed, undefined);
+});
+
+test('an agent that echoes the challenge back is not paid', () => {
+  // The 402 tells the agent the price and the resource. Anything derivable
+  // from the challenge is something the agent can forge.
+  const opts = { ...OPTS(), verifyPayment: p => p === 'settled-tx-9f3' };
+  const g = new Wayleave(opts);
+  const c = g.handle(signed(req('/api/premium/x', { ua: 'ClaudeBot/1.0' })), NOW).challenge;
+  for (const guess of [`paid:${c.resource}:${c.price_usd}`, 'paid', 'true',
+                       JSON.stringify(c), `${c.price_usd}`]) {
+    const r = g.handle(signed(req('/api/premium/x', { ua: 'ClaudeBot/1.0' })), NOW, guess);
+    assert.equal(r.status, 402, `guessed proof "${guess}" bought passage`);
+  }
+});
+
+test('a rejected payment is never written to the ledger as billed', () => {
+  const events = [];
+  const opts = { ...OPTS(), onEvent: e => events.push(e),
+                 verifyPayment: () => false };
+  new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW, 'nice-try');
+  assert.equal(events[0].status, 402);
+  assert.equal(events[0].billedUsd, 0, 'unsettled money must never be booked');
+});
+
+test('a verifier that throws denies passage rather than granting it', () => {
+  const opts = { ...OPTS(), verifyPayment: () => { throw new Error('rail down'); } };
+  const r = new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW, 'x');
+  assert.equal(r.status, 402);
+  assert.match(r.why, /verifier threw/);
+});
+
+test('the verifier is told the price and resource it is confirming', () => {
+  let ctx;
+  const opts = { ...OPTS(), verifyPayment: (p, c) => { ctx = c; return true; } };
+  new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW, 'tx');
+  assert.equal(ctx.price, 0.05);
+  assert.equal(ctx.resource, '/api/premium');
+  assert.equal(ctx.identity, 'https://agents.anthropic.example/keys#claude-1');
+});
+
+test('settlement reference from the verifier reaches the ledger', () => {
+  const events = [];
+  const opts = { ...OPTS(), onEvent: e => events.push(e),
+                 verifyPayment: () => ({ ok: true, ref: 'base-tx-0xabc' }) };
+  new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW, 'tx');
+  assert.equal(events[0].paymentRef, 'base-tx-0xabc');
+  assert.equal(events[0].billedUsd, 0.05);
 });
 
 test('suspected bot on priced path → 402 (sneaky automation pays too)', () => {
@@ -176,10 +323,11 @@ test('human on priced path → free 200', () => {
 
 test('onEvent metering hook fires with billed amount', () => {
   const events = [];
-  const opts = { ...OPTS(), onEvent: e => events.push(e) };
+  const opts = { ...OPTS(), onEvent: e => events.push(e),
+                 verifyPayment: () => true };
   new Wayleave(opts).handle(
     signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW,
-    'paid:/api/premium:0.05');
+    'settled-tx-9f3');
   assert.equal(events.length, 1);
   assert.equal(events[0].billedUsd, 0.05);
   assert.equal(events[0].identity, 'https://agents.anthropic.example/keys#claude-1');

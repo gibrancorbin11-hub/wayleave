@@ -36,6 +36,8 @@ const gate = new Wayleave({
   },
   rateLimits: { declared_agent: 10 },
   pricedPaths: { '/api/premium': 0.05 },   // agents pay 5¢/call, humans free
+  verifyPayment: (proof, { price, resource }) =>
+    facilitator.confirmSettled(proof, price, resource),  // REQUIRED to sell
   onEvent: e => queueForBilling(e),        // metering hook; never blocks serving
 });
 
@@ -53,7 +55,9 @@ app.use(gate.express());
 
 ## Status
 
-v0.1 — verification, lanes, policy, pricing, and the metering hook, all under test (29 scenarios, including forgery, tampering, replay, and cross-implementation wire formats). Payment settlement network integration is in progress; today the 402 challenge and payment-proof check are pluggable.
+v0.1.5 — verification, lanes, policy, pricing, and the metering hook, all under test (44 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
+
+0.1.5 closes a hole worth naming: before it, a priced route accepted a payment proof that any agent could derive from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement confirmation is now yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced route, upgrade.
 
 ## How payment actually works
 
@@ -74,7 +78,36 @@ at your gate.
 
 Wayleave never holds funds. Agent money flows agent → facilitator → you.
 The hosted meter (not built yet — see the waitlist) is what wires this
-end-to-end; today the 402 challenge and payment-proof check are pluggable.
+end-to-end; today the 402 challenge is built in and step 3 is a function
+you supply.
+
+**Step 3 is yours, and it defaults to no.** `verifyPayment(proof, ctx)` is
+the only thing that can turn a 402 into a 200. Configure nothing and every
+priced route stays 402 forever — deliberately. A payment proof is a string
+written by the party who owes you money, so there is nothing this library
+can check about it on its own that the payer could not have fabricated.
+Point it at a facilitator that confirms settlement, and never at a
+comparison against the challenge you just issued. A verifier that returns
+anything but `true`/`{ok:true}` — or that throws — denies passage, and
+nothing but a confirmed settlement is ever written to the ledger as billed.
+
+## Security posture
+
+- **Rate limits key on the connection address, not `x-forwarded-for`.**
+  The header is client-written unless a proxy you own overwrites it; believing
+  it by default hands an attacker unlimited fresh buckets. Behind a real proxy,
+  set `trustProxy: true`. Pass `req.ip` (the Express adapter does).
+- **In-memory state is bounded** by `maxTracked` (default 10,000) and cleared
+  each rate window, so a flood of distinct clients cannot exhaust memory.
+- **Replay: single-use is enforced only for signers that send RFC 9421's
+  `nonce`.** Signature bytes are not a usable substitute — Ed25519 is
+  deterministic and the Web Bot Auth profile covers only `@authority`, so one
+  agent hitting two paths in the same second produces byte-identical
+  signatures. Rejecting those would break real traffic. Without a signer
+  nonce, replay is bounded by the expiry window and nothing tighter.
+- **State is per-process.** Rate limits and replay memory do not survive a
+  restart and do not span instances — two instances mean two independent
+  limiters. Shared state is the next real gap, alongside key rotation.
 
 ## License
 
