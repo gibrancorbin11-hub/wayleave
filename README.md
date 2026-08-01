@@ -55,6 +55,27 @@ app.use(gate.express());
 
 v0.1 — verification, lanes, policy, pricing, and the metering hook, all under test (29 scenarios, including forgery, tampering, replay, and cross-implementation wire formats). Payment settlement network integration is in progress; today the 402 challenge and payment-proof check are pluggable.
 
+## How payment actually works
+
+Pay-at-the-door, not IOUs. On a route you price:
+
+1. An agent requests the route → Wayleave answers `402 Payment Required`
+   with an x402-shaped challenge: the price and *your* receiving address.
+2. A wallet-carrying agent signs payment and retries with proof attached.
+3. The proof is verified and settlement executes on a licensed rail
+   (x402 facilitator) — money moves to your account.
+4. Only then: `200`. No settled payment, no passage. Data never moves
+   on a promise.
+
+Agents without wallets (most crawlers today) are simply turned away on
+priced routes — you aren't paid by them, but you also never serve them
+free. The ledger shows exactly how much turned-away demand is standing
+at your gate.
+
+Wayleave never holds funds. Agent money flows agent → facilitator → you.
+The hosted meter (not built yet — see the waitlist) is what wires this
+end-to-end; today the 402 challenge and payment-proof check are pluggable.
+
 ## License
 
 MIT
