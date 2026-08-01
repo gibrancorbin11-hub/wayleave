@@ -431,3 +431,26 @@ test('foreign-format tampering is still caught', () => {
   r.authority = 'evil.example.com';           // changed after signing
   assert.equal(w.handle(r, NOW).lane, LANES.SUSPECT);
 });
+
+// ── the zero-dependency property ────────────────────────────────────────
+//
+// This is the differentiation, not a boast. Every comparable library pulls a
+// tree (corri 3, x402 13, vestauth 8); the CDN and SaaS products can't run on
+// your host at all. One `npm install --save` erases the only thing Wayleave
+// has that nobody else does, and it would be erased silently. So it is a test.
+
+test('the package declares zero runtime dependencies', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const pkg = JSON.parse(await readFile(new URL('./package.json', import.meta.url)));
+  assert.deepEqual(pkg.dependencies ?? {}, {},
+    'a runtime dependency erases the whole differentiation — see launch/COMPETITIVE.md');
+  assert.deepEqual(pkg.peerDependencies ?? {}, {}, 'a peer dep is still a dep to the installer');
+});
+
+test('nothing outside node: is imported at runtime', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('./index.js', import.meta.url), 'utf8');
+  const imports = [...src.matchAll(/^\s*import\s[^'"]*['"]([^'"]+)['"]/gm)].map(m => m[1]);
+  const foreign = imports.filter(s => !s.startsWith('node:') && !s.startsWith('.'));
+  assert.deepEqual(foreign, [], `non-builtin import(s): ${foreign.join(', ')}`);
+});
