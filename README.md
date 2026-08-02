@@ -59,13 +59,13 @@ app.use(gate.express());
 
 ## Status
 
-v0.2.0 — verification, lanes, policy, pricing, and the metering hook, all under test (70 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, spoofed operator identity, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
+v0.2.1 — verification, lanes, policy, pricing, and the metering hook, all under test (87 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, spoofed operator identity, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
 
 0.1.5 closes a hole worth naming: before it, a priced route accepted a payment proof that any agent could derive from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement confirmation is now yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced route, upgrade.
 
 0.1.6 addresses the other half of the same question. Payment could be faked; so could being human. `strictPricedPaths` lets a priced route demand positive evidence instead of accepting the absence of a bot signal as one.
 
-0.2.0 turns three hardcoded strategies into seams — state, metering, and key lookup — so shared storage, durable billing, and key rotation become configuration rather than a rewrite. Defaults are unchanged; see [Extending it](#extending-it).
+0.2.1 ships `wayleave/meter`, a buffering and retrying sink for the hosted meter. 0.2.0 turns three hardcoded strategies into seams — state, metering, and key lookup — so shared storage, durable billing, and key rotation become configuration rather than a rewrite. Defaults are unchanged; see [Extending it](#extending-it).
 
 ## How payment actually works
 
@@ -158,6 +158,28 @@ new Wayleave({
 
 Every metering event carries `v` (schema version) and `idempotencyKey`, so a
 sink that retries can be deduplicated at the far end rather than double-billing.
+
+A buffering, retrying sink ships in the box:
+
+```js
+import Wayleave from 'wayleave';
+import { MeterSink } from 'wayleave/meter';
+
+const sink = new MeterSink({
+  endpoint: 'https://meter.wayleave.dev',
+  apiKey: process.env.WAYLEAVE_METER_KEY,
+  onError: (err, info) => log.warn({ err, info }, 'meter'),
+});
+
+const gate = new Wayleave({ pricedPaths: { '/api/premium': 0.05 }, sink });
+process.on('SIGTERM', () => sink.close());   // drain, or lose what is buffered
+```
+
+`emit` is synchronous, non-throwing, and does no I/O — a billing backend
+having a bad day must not become your customers having one. Retries are safe
+because of the idempotency key: sending a batch twice costs a round trip, not
+a double-billed customer. The buffer is bounded, and anything shed is counted
+and reported rather than dropped quietly.
 
 `verifyAgentIP` is the one that changes a lane. A `user-agent` naming a known
 operator is a claim; when that operator publishes its ranges the claim is

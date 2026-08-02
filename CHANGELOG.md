@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.2.1
+
+**Ships `wayleave/meter`, which 0.2.0 promised and did not include.**
+
+0.2.0 added the `sink` interface and put `idempotencyKey` on every event so a
+retrying sink could be deduplicated at the far end. The sink itself landed
+after the tarball was cut, so `import { MeterSink } from 'wayleave/meter'`
+failed on anything installed from npm. This release is that import working.
+
+- **`MeterSink`** — a `sink` that buffers, batches, and retries against a
+  wayleave meter. The default `DirectSink` hands each event to `onEvent` and
+  swallows what it throws: correct for uptime, lossy for revenue. This one
+  survives a backend having a bad day.
+
+  Retrying is only safe because every event already carries an
+  `idempotencyKey`. Sending a batch twice costs a round trip, not a
+  double-billed customer.
+
+  Three properties it holds, each under test: `emit` never throws, never
+  awaits, and does no I/O, so a billing backend cannot become a serving
+  outage. Nothing is dropped silently — the buffer is bounded and every shed
+  event is counted and reported, because a silent drop is a billing hole. And
+  a 4xx that is not 429 is consumed rather than retried, since retrying an
+  unauthorised or malformed batch forever is how a buffer becomes a memory
+  leak.
+
+- `close()` drains on shutdown. Without it, whatever is buffered when a
+  container cycles is revenue you paid attention for and never received.
+- Tests: 70 → 87.
+
+No behaviour changes to the gate. If you do not import `wayleave/meter`,
+0.2.1 is byte-identical to 0.2.0 in every path you use.
+
 ## 0.2.0
 
 **Interfaces where there were implementations. No behaviour changes.**
