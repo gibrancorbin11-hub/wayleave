@@ -9,16 +9,22 @@
     ".": {
       "types": "./index.d.ts",
       "default": "./index.js"
+    },
+    "./meter": {
+      "types": "./meter.d.ts",
+      "default": "./meter.js"
     }
   },
   "files": [
-    "index.js",
-    "index.d.ts",
+    "LICENSE",
     "README.md",
-    "LICENSE"
+    "index.d.ts",
+    "index.js",
+    "meter.d.ts",
+    "meter.js"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test *.test.js"
   },
   "engines": {
     "node": ">=18"
