@@ -1,0 +1,11 @@
+# /v2.html was an unfinished redesign draft that sat on the production domain
+# for three days. It was removed from site/ (preserved at launch/v2-draft.html,
+# which is gitignored) and it is absent from both the working tree and git —
+# and Netlify kept serving it anyway across four deploys. Rather than keep
+# hunting for where the deploy bundle picks it up, this makes it unreachable
+# whether or not the file is present.
+#
+# The trailing ! is load-bearing. Without it Netlify serves a matching static
+# file in preference to a redirect rule, which is exactly the case here.
+
+/v2.html    /    301!
