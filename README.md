@@ -27,6 +27,7 @@ Only the first lane is cryptographic. The other three are read off what the clie
 
 ```js
 import Wayleave from 'wayleave';
+import { coinbaseFacilitator } from 'wayleave/x402';
 
 const gate = new Wayleave({
   directories: {
@@ -38,13 +39,21 @@ const gate = new Wayleave({
   },
   rateLimits: { declared_agent: 10 },
   pricedPaths: { '/api/premium': 0.05 },   // agents pay 5¢/call, humans free
-  verifyPayment: (proof, { price, resource }) =>
-    facilitator.confirmSettled(proof, price, resource),  // REQUIRED to sell
+  verifyPayment: coinbaseFacilitator({                   // REQUIRED to sell
+    apiKeyId: process.env.CDP_API_KEY_ID,
+    apiKeySecret: process.env.CDP_API_KEY_SECRET,
+    receivingAddress: process.env.WAYLEAVE_RECEIVING_ADDRESS,
+  }),
   onEvent: e => queueForBilling(e),        // metering hook; never blocks serving
 });
 
-app.use(gate.express());
+app.use(gate.express());   // async: it awaits your verifier
 ```
+
+**If you sell anything, use `gate.express()` or `gate.handleAsync()`.**
+Confirming settlement is a network call, so a real `verifyPayment` returns a
+Promise. The synchronous `handle()` cannot await one and will tell you so
+rather than quietly denying every payment.
 
 ## Guarantees, honestly stated
 
@@ -59,7 +68,7 @@ app.use(gate.express());
 
 ## Status
 
-v0.2.1 — verification, lanes, policy, pricing, and the metering hook, all under test (87 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, spoofed operator identity, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
+v0.3.0 — verification, lanes, policy, pricing, and the metering hook, all under test (101 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, spoofed operator identity, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
 
 0.1.5 closes a hole worth naming: before it, a priced route accepted a payment proof that any agent could derive from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement confirmation is now yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced route, upgrade.
 

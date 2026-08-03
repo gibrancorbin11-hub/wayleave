@@ -116,7 +116,8 @@ export interface PaymentContext {
 export type PaymentVerifier = (
   proof: string,
   ctx: PaymentContext
-) => boolean | { ok: boolean; ref?: string; reason?: string };
+) => boolean | { ok: boolean; ref?: string; reason?: string }
+  | Promise<boolean | { ok: boolean; ref?: string; reason?: string }>;
 
 /** x402-shaped payment challenge returned with a 402. */
 export interface PaymentChallenge {
@@ -315,6 +316,12 @@ export interface WayleaveOptions {
    * billing must never break serving.
    */
   onEvent?: (event: MeterEvent) => void;
+  /**
+   * Shorthand for wiring a `MeterSink` yourself: `meter: { apiKey }` builds
+   * one pointed at meter.wayleave.dev. Pass `sink` directly for full control;
+   * an explicit `sink` always wins.
+   */
+  meter?: { apiKey: string; endpoint?: string; [k: string]: unknown };
 }
 
 /** Build the `@signature-params` value for the Web Bot Auth profile. */
@@ -364,6 +371,12 @@ export function classify(
 
 export class Wayleave {
   constructor(opts?: WayleaveOptions);
+  /**
+   * Async twin of `handle`. Required if `verifyPayment` returns a Promise —
+   * which any real facilitator does, since confirming settlement is a network
+   * call. `express()` uses this.
+   */
+  handleAsync(req: WayleaveRequest, now?: number, paymentProof?: string): Promise<Decision>;
   /** Classify, apply policy, price, and emit the metering event. */
   handle(
     req: WayleaveRequest,

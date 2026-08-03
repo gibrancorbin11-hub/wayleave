@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.3.0
+
+**A bug that meant nobody could ever have been paid, and the fix that makes
+selling two lines instead of an integration.**
+
+`verifyPayment` could not be async. `_checkPayment` was synchronous and tested
+`r.ok === true`; a Promise has no `.ok`, so it fell through to "not settled".
+Every asynchronous verifier denied every payment, silently — and since
+confirming settlement is a network call, *every real verifier is
+asynchronous*. The README documented exactly that pattern
+(`verifyPayment: (proof, ctx) => facilitator.confirmSettled(...)`), so the
+documented way to sell anything has never worked since it was introduced in
+0.1.5. It failed closed rather than open, which is the right direction, but it
+failed silently, which is the wrong way.
+
+- **`handleAsync(req, now, proof)`** awaits your verifier. `express()` now
+  uses it, so anyone on the Express adapter gets the fix for free.
+- **A Promise on the synchronous path is now refused loudly**, naming
+  `handleAsync` in the reason, instead of being read as a falsy verdict.
+- `_decide` and its async twin share one `_preDecide`, so the policy, replay,
+  and rate-limit logic exists once. Two copies would drift and the drifted one
+  would be the untested one.
+
+- **`wayleave/x402`** — a ready-made `verifyPayment` for the Coinbase rail:
+
+  ```js
+  import { coinbaseFacilitator } from 'wayleave/x402';
+
+  verifyPayment: coinbaseFacilitator({
+    apiKeyId: process.env.CDP_API_KEY_ID,
+    apiKeySecret: process.env.CDP_API_KEY_SECRET,
+    receivingAddress: process.env.WAYLEAVE_RECEIVING_ADDRESS,
+  })
+  ```
+
+  It handles the two endpoints, the request shape, atomic-unit conversion
+  (string arithmetic — `0.07 * 1e6` floats to `70000.00000000001`), and the
+  fact that the facilitator answers HTTP 200 even when a payment fails. Your
+  credentials, your receiving address; the module has no method that moves
+  value and there's a test asserting it never grows one.
+
+- **`meter: { apiKey }`** builds a `MeterSink` for you. An explicit `sink`
+  still wins.
+- A missing `receivingAddress` throws at construction rather than at a
+  customer's first sale.
+- Tests: 87 → 101.
+
 ## 0.2.1
 
 **Ships `wayleave/meter`, which 0.2.0 promised and did not include.**

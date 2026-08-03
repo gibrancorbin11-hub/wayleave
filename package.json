@@ -1,6 +1,6 @@
 {
   "name": "wayleave",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Charge AI agents for passage across your app. Verify agent signatures (Web Bot Auth / Ed25519), classify every request, and return 402 with a price on routes you choose. Humans browse free.",
   "type": "module",
   "main": "index.js",
@@ -13,6 +13,10 @@
     "./meter": {
       "types": "./meter.d.ts",
       "default": "./meter.js"
+    },
+    "./x402": {
+      "types": "./x402.d.ts",
+      "default": "./x402.js"
     }
   },
   "files": [
@@ -21,7 +25,9 @@
     "index.d.ts",
     "index.js",
     "meter.d.ts",
-    "meter.js"
+    "meter.js",
+    "x402.d.ts",
+    "x402.js"
   ],
   "scripts": {
     "test": "node --test *.test.js"

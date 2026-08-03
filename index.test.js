@@ -399,7 +399,7 @@ test('STRICT: unpriced paths are untouched — humans still browse', () => {
   assert.equal(r.status, 200, 'strict mode is scoped to priced routes only');
 });
 
-test('STRICT: confirmHuman sees the framework request under express()', () => {
+test('STRICT: confirmHuman sees the framework request under express()', async () => {
   // The adapter projects the request down to headers/path/ip before
   // classifying. If that projection is all confirmHuman ever saw, every
   // signed-in visitor would be billed as a bot on a priced route.
@@ -414,8 +414,10 @@ test('STRICT: confirmHuman sees the framework request under express()', () => {
     session: { userId: 'u_42' },
   };
   let nexted = false;
-  gate.express()(expressReq, { status: () => { throw new Error('paywalled a real user'); } },
-                 () => { nexted = true; });
+  // express() is async now: it must be able to await a network verifier.
+  await gate.express()(expressReq,
+                       { status: () => { throw new Error('paywalled a real user'); } },
+                       () => { nexted = true; });
   assert.deepEqual(sawSession, { userId: 'u_42' }, 'callback got the express req');
   assert.ok(nexted, 'a signed-in human passes through');
   assert.equal(expressReq.wayleave.status, 200);

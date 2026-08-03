@@ -19,6 +19,9 @@
 
 import { createPublicKey, verify as edVerify, sign as edSign,
          createHash, randomUUID } from 'node:crypto';
+// Same package, zero dependencies, ~9KB. Importing it unconditionally costs
+// nothing measurable and makes `meter: { apiKey }` work without ceremony.
+import { MeterSink } from './meter.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -351,6 +354,24 @@ export class DirectSink {
   }
 }
 
+/**
+ * Turn whatever a verifier returned into a verdict.
+ *
+ * A Promise reaching here means an async verifier was used on the synchronous
+ * path. Reading `.ok` off a Promise yields undefined and denies silently —
+ * which is precisely how the documented facilitator example failed from 0.1.5
+ * to 0.2.1. It now says so instead.
+ */
+function normalizeVerdict(r) {
+  if (r && typeof r.then === 'function')
+    return { ok: false, reason:
+      'verifyPayment returned a Promise — use gate.handleAsync() or gate.express(), ' +
+      'which await it. The synchronous handle() cannot.' };
+  if (r === true) return { ok: true, ref: null };
+  if (r && r.ok === true) return { ok: true, ref: r.ref || null };
+  return { ok: false, reason: (r && r.reason) || 'not settled' };
+}
+
 // ── the gate ────────────────────────────────────────────────────────────
 
 export class Wayleave {
@@ -408,7 +429,19 @@ export class Wayleave {
     // State and metering are interfaces, not implementations. Swap either for
     // a shared or durable one without the gate noticing. See MemoryStore.
     this.store = opts.store || new MemoryStore({ maxTracked: this.maxTracked });
-    this.sink = opts.sink || new DirectSink(this.onEvent);
+
+    // `meter: { apiKey }` is shorthand for wiring a MeterSink yourself. It
+    // exists because the two-line version of this was the most common thing
+    // people got wrong: forgetting to drain on shutdown, or handing the sink
+    // a callback that throws. Pass `sink` directly if you want control.
+    this.sink = opts.sink
+      || (opts.meter?.apiKey
+            ? new MeterSink({
+                endpoint: 'https://meter.wayleave.dev',
+                ...opts.meter,
+              })
+            : null)
+      || new DirectSink(this.onEvent);
 
     // Identifies events from this process so a retrying sink can dedup. A
     // counter alone would collide across instances; a timestamp alone would
@@ -438,6 +471,28 @@ export class Wayleave {
   }
 
   /**
+   * Async twin of handle(), for verifiers that talk to a network.
+   *
+   * Identical in every respect except that it can await your verifyPayment.
+   * Use this whenever you actually sell something; the Express adapter does.
+   */
+  async handleAsync(req, now = Math.floor(Date.now() / 1000), paymentProof = '') {
+    const c = classify(req, this.directories, now,
+                       { verifyAgentIP: this.verifyAgentIP, ip: this._client(req) });
+    const { lane, agentId, evidence } = c;
+    const ident = agentId || `${lane}:${this._client(req)}`;
+    const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
+    const d = await this._decideAsync(req, lane, ident, now, proof, c);
+    const entry = { v: 1, idempotencyKey: `${this._instance}:${this._seq++}`,
+                    t: now, path: req.path, lane, identity: ident,
+                    status: d.status, why: d.why, evidence,
+                    billedUsd: d.billed || 0 };
+    if (d.paymentRef) entry.paymentRef = d.paymentRef;
+    this.sink.emit(entry);
+    return { lane, identity: ident, ...d, evidence };
+  }
+
+  /**
    * Who to rate-limit. A cryptographic identity is authoritative; a network
    * address is at least expensive to rotate. A header is neither.
    */
@@ -448,6 +503,7 @@ export class Wayleave {
     }
     return req.ip || 'unknown';
   }
+
 
   /**
    * Positive evidence that a person is present, which only your application
@@ -470,7 +526,17 @@ export class Wayleave {
     return this.store.hit(ident, this.rateWindow, now);
   }
 
-  _decide(req, lane, ident, now, paymentProof, c) {
+  /**
+   * Everything up to the payment question.
+   *
+   * Split out so the sync and async paths share one copy of the policy,
+   * replay, and rate-limit logic. Two copies of this would drift, and the
+   * half that drifted would be the one nobody tested.
+   *
+   * Returns either a final decision, or a marker saying a priced route was
+   * matched and a payment verdict is needed.
+   */
+  _preDecide(req, lane, ident, now, paymentProof, c) {
     for (const [prefix, allow] of this.rules[lane] || []) {
       if (req.path.startsWith(prefix)) {
         if (!allow) return { status: 403, why: `${lane} denied on ${prefix}` };
@@ -508,18 +574,38 @@ export class Wayleave {
               : 'payment required for agent access';
             return { status: 402, why, challenge };
           }
-          const v = this._checkPayment(paymentProof, {
-            price, resource: prefix, identity: ident, path: req.path, now });
-          if (v.ok)
-            return { status: 200, billed: price, paymentRef: v.ref,
-                     why: `settled $${price}` };
-          return { status: 402, why: `payment proof rejected: ${v.reason}`, challenge };
+          // Hand back to the caller, which knows whether it can await.
+          return { needsPayment: true, challenge, price,
+                   ctx: { price, resource: prefix, identity: ident,
+                          path: req.path, now } };
         }
       }
     }
     if (lane === LANES.SUSPECT && req.method !== 'GET')
       return { status: 403, why: 'write blocked for unverified automation' };
     return { status: 200, why: `${lane} allowed` };
+  }
+
+  /** Turn a payment verdict into the final decision. Shared by both paths. */
+  _settleDecision(v, pre) {
+    if (v.ok)
+      return { status: 200, billed: pre.price, paymentRef: v.ref,
+               why: `settled $${pre.price}` };
+    return { status: 402, why: `payment proof rejected: ${v.reason}`,
+             challenge: pre.challenge };
+  }
+
+  _decide(req, lane, ident, now, paymentProof, c) {
+    const pre = this._preDecide(req, lane, ident, now, paymentProof, c);
+    if (!pre.needsPayment) return pre;
+    return this._settleDecision(this._checkPayment(paymentProof, pre.ctx), pre);
+  }
+
+  async _decideAsync(req, lane, ident, now, paymentProof, c) {
+    const pre = this._preDecide(req, lane, ident, now, paymentProof, c);
+    if (!pre.needsPayment) return pre;
+    return this._settleDecision(
+      await this._checkPaymentAsync(paymentProof, pre.ctx), pre);
   }
 
   /**
@@ -533,15 +619,32 @@ export class Wayleave {
     let r;
     try { r = this.verifyPayment(proof, ctx); }
     catch (e) { return { ok: false, reason: `verifier threw: ${e.message}` }; }
-    if (r === true) return { ok: true, ref: null };
-    if (r && r.ok === true) return { ok: true, ref: r.ref || null };
-    return { ok: false, reason: (r && r.reason) || 'not settled' };
+    return normalizeVerdict(r);
+  }
+
+  /**
+   * The async twin of _checkPayment.
+   *
+   * Every real facilitator is a network call, so a useful verifier returns a
+   * Promise. The synchronous path cannot await one and refuses it loudly
+   * rather than reading `.ok` off a Promise and silently denying — which is
+   * what shipped from 0.1.5 to 0.2.1, and meant the documented way to sell
+   * anything never worked.
+   */
+  async _checkPaymentAsync(proof, ctx) {
+    if (!this.verifyPayment)
+      return { ok: false, reason: 'no verifyPayment configured' };
+    try {
+      return normalizeVerdict(await this.verifyPayment(proof, ctx));
+    } catch (e) {
+      return { ok: false, reason: `verifier threw: ${e.message}` };
+    }
   }
 
   /** Express/Connect adapter: app.use(wayleave.express()) */
   express() {
-    return (req, res, next) => {
-      const r = this.handle({
+    return async (req, res, next) => {
+      const r = await this.handleAsync({
         method: req.method, path: req.path || req.url,
         authority: req.headers.host || '',
         headers: req.headers,
