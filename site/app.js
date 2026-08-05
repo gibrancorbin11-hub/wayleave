@@ -123,44 +123,9 @@
     startDemo();
   }
 
-  /* ---------- Waitlist form (static preview — no backend) ---------- */
-  var joinForm = document.getElementById('joinForm');
-  var waitlistWrap = document.getElementById('waitlistForm');
-
-  if (joinForm) {
-    joinForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-
-      var submitBtn = joinForm.querySelector('button[type="submit"]');
-      var errorEl = document.getElementById('joinError');
-      if (errorEl) { errorEl.hidden = true; }
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Joining…'; }
-
-      /* Netlify Forms accepts a urlencoded POST to the page path as long as
-         form-name is included. Only reveal the success state if the POST
-         actually succeeded — a form that claims success while dropping the
-         signup is worse than one that visibly fails. */
-      fetch('/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(new FormData(joinForm)).toString()
-      })
-        .then(function (res) {
-          if (!res.ok) { throw new Error('HTTP ' + res.status); }
-          waitlistWrap.classList.add('is-submitted');
-        })
-        .catch(function () {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Join the waitlist'; }
-          if (errorEl) {
-            errorEl.hidden = false;
-          } else {
-            /* No-JS-error element in the DOM: fall back to a real submit so
-               the signup is never silently lost. */
-            joinForm.submit();
-          }
-        });
-    });
-  }
+  /* The waitlist form lived here. It was removed once the meter opened for
+     real sign-ups — the CTA is now a link to meter.wayleave.dev, so there is
+     no form on this page and nothing to intercept. */
 
   /* ---------- Scroll reveal ---------- */
   var revealEls = document.querySelectorAll('.reveal');

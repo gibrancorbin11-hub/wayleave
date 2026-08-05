@@ -49,6 +49,7 @@
     "ed25519"
   ],
   "license": "MIT",
+  "author": "Gibran Corbin (https://github.com/gibrancorbin11-hub)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gibrancorbin11-hub/wayleave.git"
@@ -56,5 +57,5 @@
   "bugs": {
     "url": "https://github.com/gibrancorbin11-hub/wayleave/issues"
   },
-  "homepage": "https://github.com/gibrancorbin11-hub/wayleave#readme"
+  "homepage": "https://wayleave.dev"
 }

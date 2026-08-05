@@ -43,8 +43,7 @@
       <a href="#shipping">The free part</a>
       <a href="#meter">The paid part</a>
       <a href="#status">Status</a>
-      <a href="#waitlist">Join the list</a>
-      <a href="https://meter.wayleave.dev">Sign in</a>
+      <a href="https://meter.wayleave.dev/docs.html">Docs</a>
     </nav>
     <div class="header-actions">
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark and light mode">
@@ -56,9 +55,8 @@
           <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.7 6.7 0 0 0 10.5 10.5Z" stroke-linejoin="round"/>
         </svg>
       </button>
-      <a class="btn btn-ghost" href="https://www.npmjs.com/package/wayleave" target="_blank" rel="noopener noreferrer"><span>npm i wayleave</span></a>
-      <a class="btn btn-ghost" href="https://meter.wayleave.dev"><span>Sign in</span></a>
-      <a class="btn btn-primary" href="#waitlist">Join the waitlist</a>
+      <a class="btn btn-ghost btn-npm" href="https://www.npmjs.com/package/wayleave" target="_blank" rel="noopener noreferrer"><span>npm i wayleave</span></a>
+      <a class="btn btn-primary" href="https://meter.wayleave.dev"><span>Sign in</span></a>
     </div>
   </div>
 </header>
@@ -83,7 +81,7 @@
               <svg id="checkIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><path d="M5 12l5 5 9-11" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
-          <a href="#waitlist" class="btn btn-primary">Join the waitlist</a>
+          <a href="https://meter.wayleave.dev" class="btn btn-primary">Sign in to the meter</a>
         </div>
         <div class="hero__meta reveal">
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z"/></svg>Ed25519 signatures</span>
@@ -267,69 +265,58 @@
           <h3>The middleware is real.</h3>
           <p>Signature verification is genuine Ed25519 over an RFC 9421 signature base. Forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected, and it's tested adversarially. Sub-millisecond per request.</p>
         </div>
-        <div class="status-card status-card--unbuilt reveal">
-          <span class="status-card__tag">Running, not yet for sale</span>
-          <h3>The hosted meter is running.</h3>
-          <p>It went live on 2 August. It receives crossings from the middleware, counts each one exactly once no matter how often your app retries, and reports what you are owed per cryptographic identity — with a CSV you could invoice from.</p>
-          <p><strong>What it cannot do yet: take your money.</strong> Billing is not switched on, so there is nothing to buy today and no way to start a plan. This list is still who gets it first.</p>
-          <p><strong>$49/month, flat</strong> when it opens — priced on metered events, never a cut of what you collect. Taking a percentage of the flow would make this a payment intermediary, which it is deliberately not. Join if that is a number you would pay; the middleware stays free and finished either way.</p>
+        <div class="status-card status-card--live reveal">
+          <span class="status-card__tag">Live &amp; open</span>
+          <h3>The hosted meter is open.</h3>
+          <p>It went live on 2 August. It receives crossings from the middleware, counts each one exactly once no matter how often your app retries, and reports what you are owed per cryptographic identity — with a CSV you can invoice from.</p>
+          <p><strong>You can start today.</strong> Sign in, install the middleware, point it at your key. Signing in does not start a plan — you can run the ledger in observe-only mode for as long as you like and never enter a card.</p>
+          <p><strong>$49/month, flat</strong> after a 3-day trial — priced on metered events, never a cut of what you collect. Taking a percentage of the flow would make this a payment intermediary, which it is deliberately not. The middleware stays free and finished either way.</p>
         </div>
       </div>
 
-      <p class="status__closer reveal">No fake urgency and no countdown. You'll get one email when you can actually start using it, and nothing else.</p>
+      <p class="status__closer reveal">No fake urgency and no countdown. Nothing on this page is a promise about the future — it either works today or it isn't listed.</p>
     </div>
   </section>
 
-  <!-- WAITLIST -->
-  <section id="waitlist" class="waitlist">
+  <!-- START -->
+  <section id="start" class="waitlist">
     <div class="container container--wide waitlist__grid">
       <div class="waitlist__copy">
-        <div class="eyebrow">Join the list</div>
-        <h2 class="section-title reveal">Get the meter first.</h2>
-        <p class="reveal">The middleware is free either way. This is only about the hosted meter — the ledger, billing, and directory service that turns priced crossings into invoices. <strong>From $49/month.</strong></p>
+        <div class="eyebrow">Start counting</div>
+        <h2 class="section-title reveal">See what's already crossing.</h2>
+        <p class="reveal">Install the middleware, point it at a key, and the ledger fills up on its own. Most people find the number larger than they expected — and that number costs nothing to look at. <strong>$49/month after a 3-day trial, only when you choose to start one.</strong></p>
         <ul class="waitlist__list reveal">
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>One email when the meter is real</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>No newsletter, no noise</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Your traffic tier shapes what ships first</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Signing in doesn't start a plan, and doesn't ask for a card</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Observe-only mode: count every crossing, charge nobody</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Ten minutes, four steps, zero dependencies added to your tree</li>
         </ul>
-        <figure class="meter-preview reveal">
-          <img src="/meter-preview.png" width="1240" height="879" loading="lazy"
-               alt="Design preview of the wayleave meter: a ledger of agent crossings grouped by cryptographic identity, showing amounts owed per verified agent and unbilled traffic from unsigned agents." />
-          <figcaption>Design preview — not a running product. Every domain shown is a reserved <code>.example</code> name.</figcaption>
-        </figure>
+        <div class="hero__actions reveal" style="margin-top:var(--space-8)">
+          <a href="https://meter.wayleave.dev" class="btn btn-primary">Sign in to the meter</a>
+          <a href="https://meter.wayleave.dev/docs.html" class="btn btn-ghost"><span>Read the docs</span></a>
+        </div>
       </div>
 
-      <div class="waitlist-form reveal" id="waitlistForm">
-        <form id="joinForm" name="waitlist" method="POST" action="/thanks.html" data-netlify="true" netlify-honeypot="bot-field">
-          <input type="hidden" name="form-name" value="waitlist" />
-          <p class="sr-only" aria-hidden="true">
-            <label>Don't fill this out: <input name="bot-field" tabindex="-1" autocomplete="off" /></label>
-          </p>
-          <div class="form-field">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" placeholder="you@company.com" required />
-          </div>
-          <div class="form-field">
-            <label for="traffic">Roughly how much agent traffic do you see?
-              <span class="form-field__hint">Optional, and the single most useful thing you can tell me.</span>
-            </label>
-            <select id="traffic" name="traffic">
-              <option value="">Prefer not to say</option>
-              <option value="none-yet">None yet — planning ahead</option>
-              <option value="noticeable">Noticeable in the logs</option>
-              <option value="significant">A real share of total requests</option>
-              <option value="paying-to-serve">Enough that I'm paying to serve it</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-primary">Join the waitlist</button>
-          <p class="waitlist-form__fine" id="joinError" role="alert" hidden>That didn't go through — check your connection and try again, or email <a href="mailto:admin@sendable.me">admin@sendable.me</a>.</p>
-          <p class="waitlist-form__fine">One email when the meter is real. No newsletter, no sharing your address. See the <a href="/privacy.html">privacy notice</a>.</p>
-        </form>
-        <div class="waitlist-form__success">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
-          <h3>You're on the list.</h3>
-          <p>One email when the meter is real. Nothing else.</p>
-        </div>
+      <div class="quickstart reveal">
+        <ol class="quickstart__steps">
+          <li>
+            <h3>Install the middleware</h3>
+            <p>Zero dependencies, Node 18+. It uses Node's own crypto and pulls nothing into your tree.</p>
+            <code class="quickstart__code">npm install wayleave</code>
+          </li>
+          <li>
+            <h3>Issue a key</h3>
+            <p>Account → Issue key. Shown once; only a hash is stored. Give staging its own key so a leak never stops production.</p>
+          </li>
+          <li>
+            <h3>Run in observe-only mode</h3>
+            <p>Price nothing at first. Mount it ahead of your auth layer and watch for a few days — you can't price sensibly until you know what's actually out there.</p>
+            <code class="quickstart__code">app.use(gate.express());</code>
+          </li>
+          <li>
+            <h3>Price the routes worth pricing</h3>
+            <p>Once the ledger shows you where the traffic lands, put a price on those paths. Humans never see a paywall.</p>
+          </li>
+        </ol>
       </div>
     </div>
   </section>

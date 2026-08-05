@@ -409,7 +409,9 @@ section:first-of-type {
   .main-nav {
     display: none;
   }
-  .header-actions .btn-ghost {
+  /* The hero repeats "npm i wayleave", so dropping it here costs nothing.
+     Sign in is the only way back into the meter, so it must survive. */
+  .header-actions .btn-npm {
     display: none;
   }
   .site-header__inner {
@@ -1092,3 +1094,61 @@ pre.codeblock {
   color: var(--color-text-muted);
 }
 .meter-preview code { font-family: var(--font-mono); font-size: .95em; }
+
+/* Quickstart — the four steps from the meter docs, mirrored on the landing
+   page so the ask is "here is the work" rather than "here is a screenshot". */
+.quickstart {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: clamp(var(--space-6), 4vw, var(--space-10));
+}
+.quickstart__steps {
+  list-style: none;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+.quickstart__steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: var(--space-10);
+}
+.quickstart__steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  background: var(--color-primary-highlight);
+}
+.quickstart__steps h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  margin-bottom: var(--space-2);
+}
+.quickstart__steps p {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+.quickstart__code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+}
