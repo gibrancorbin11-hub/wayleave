@@ -4,19 +4,19 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Terms — Wayleave</title>
-<meta name="description" content="Terms for the Wayleave website and waitlist. The software itself is MIT licensed." />
+<meta name="description" content="Terms for the Wayleave website and the hosted meter subscription. The software itself is MIT licensed." />
 
 
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://wayleave.dev/" />
 <meta property="og:title" content="Terms — Wayleave" />
-<meta property="og:description" content="Terms for the Wayleave website and waitlist. The software itself is MIT licensed." />
+<meta property="og:description" content="Terms for the Wayleave website and the hosted meter subscription. The software itself is MIT licensed." />
 <meta property="og:image" content="https://wayleave.dev/og-card.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Terms — Wayleave" />
-<meta name="twitter:description" content="Terms for the Wayleave website and waitlist. The software itself is MIT licensed." />
+<meta name="twitter:description" content="Terms for the Wayleave website and the hosted meter subscription. The software itself is MIT licensed." />
 <meta name="twitter:image" content="https://wayleave.dev/og-card.png" />
 
 <link rel="stylesheet" href="fonts.css" />
@@ -34,6 +34,9 @@
   .legal h2 {
     font-size: 1.12rem; margin: 2.5rem 0 .75rem; padding-bottom: .5rem;
     border-bottom: 1px solid var(--color-divider);
+  }
+  .legal h3 {
+    font-size: 1rem; margin: 1.75rem 0 .6rem; color: var(--color-text);
   }
   .legal p, .legal li { color: var(--color-text-muted); line-height: 1.7; }
   .legal p { margin: 0 0 1rem; }
@@ -69,9 +72,9 @@
     <a class="legal__back" href="/">← Back to Wayleave</a>
 
     <h1>Terms</h1>
-    <p class="legal__meta">Last updated 30 July 2026.</p>
+    <p class="legal__meta">Last updated 5 August 2026.</p>
 
-    <p>Two separate things live under the Wayleave name, and they have different terms. This page covers the website and the waitlist. The software has its own licence.</p>
+    <p>Three separate things live under the Wayleave name, and they have different terms. This page covers the website and the hosted meter, which is a paid subscription. The software has its own licence.</p>
 
     <h2>The software is MIT licensed</h2>
     <p>The <code>wayleave</code> npm package and its source are released under the <a href="https://github.com/gibrancorbin11-hub/wayleave/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT licence</a>. That licence governs your use of the code, including the part that matters most: it is provided <strong>as is, without warranty of any kind</strong>. Nothing on this website adds a guarantee that the licence does not give.</p>
@@ -80,25 +83,52 @@
     <p>This is worth being explicit about, because the subject matter is security and money:</p>
     <ul>
       <li>Wayleave is a <strong>screening and pricing layer, not a guarantee</strong>. It verifies signatures that are presented and classifies traffic on the evidence available. It cannot promise that every automated request is caught, nor that a determined party cannot imitate a browser.</li>
-      <li><strong>Settlement is not implemented.</strong> The 402 challenge and the payment-proof check work. No payment network is wired up. Wayleave does not move, hold, or take custody of funds, and it is not a payment processor, money transmitter, or escrow service.</li>
+      <li><strong>Wayleave never takes custody of what agents pay you.</strong> The 402 challenge and the payment-proof check work. Where a settlement rail is configured, money moves from the agent to a third-party facilitator to an address <em>you</em> control; Wayleave is never a hop and never holds it. Wayleave is not a payment processor, money transmitter, or escrow service. Configuring a rail, and complying with the tax and regulatory rules that apply to money you collect, is yours to do.</li>
+      <li><strong>Settlement depends on things outside our control.</strong> Whether any given agent can pay depends on that agent, on the facilitator you choose, and on networks nobody here operates. No amount of revenue is promised, projected, or guaranteed. The meter reports what crossed and what it would have been worth; it cannot make anyone pay.</li>
       <li>Decisions it returns are <strong>advisory to your application</strong>. What you do with a lane classification — allow, deny, charge — is your configuration and your responsibility.</li>
     </ul>
     <p>You are responsible for how you deploy it, what you charge, and for complying with the laws that apply to your own service.</p>
 
-    <h2>The waitlist</h2>
-    <p>Joining the waitlist is not a purchase, a subscription, a pre-order, or a contract. No payment is taken and nothing is owed by either side.</p>
-    <p>The hosted meter described on the home page <strong>does not exist yet</strong>. The waitlist exists to decide whether it gets built. There is no commitment that it will be built, no promised launch date, and no guarantee of access, pricing, or features if it is. If that changes, it will change through a specific offer you can accept or decline — not through this page.</p>
-    <p>You can leave the list at any time by emailing <a href="mailto:admin@sendable.me">admin@sendable.me</a>. What happens to your data is set out in the <a href="/privacy.html">privacy notice</a>.</p>
+    <h2>The hosted meter — the paid part</h2>
+    <p>The meter at <a href="https://meter.wayleave.dev">meter.wayleave.dev</a> is a subscription service. These terms apply if you start a plan.</p>
+
+    <h3>Price, trial, and renewal</h3>
+    <ul>
+      <li><strong>$49 per month</strong>, in US dollars, charged to the card you provide.</li>
+      <li>Every plan begins with a <strong>3-day trial</strong>. A valid card is collected before the trial starts, and <strong>nothing is charged during those three days</strong>.</li>
+      <li>When the trial ends, the card is charged $49 and the subscription renews <strong>monthly until you cancel</strong>. If no valid payment method is on file when the trial ends, the subscription is cancelled rather than pursued for payment.</li>
+      <li>The price is flat and based on metered events. It is never a percentage of anything agents pay you — taking a cut of that flow would make this a payment intermediary, which it deliberately is not.</li>
+      <li>Prices may change, but not for an existing subscription without notice by email first. You can cancel before any change takes effect.</li>
+      <li>Signing in does not start a plan and does not ask for a card. The ledger runs in observe-only mode for as long as you want.</li>
+    </ul>
+
+    <h3>Cancelling and refunds</h3>
+    <ul>
+      <li>You can cancel at any time from <strong>Account → Manage billing</strong>, which opens a portal where you can cancel, change your card, and see past invoices. No email or phone call is required.</li>
+      <li>Cancelling stops the next renewal. Your plan stays active until the end of the period you have already paid for.</li>
+      <li>Cancel during the 3-day trial and <strong>you are never charged at all</strong>.</li>
+      <li>Monthly charges are not pro-rated on cancellation. If something went wrong on our side — an outage, a duplicate charge, a bill you did not expect — email and it gets refunded. That is a commitment, not a discretion.</li>
+    </ul>
+
+    <h3>What a plan gets you, and what it does not</h3>
+    <p>A plan gets you the hosted ledger: durable, deduplicated records of billable crossings, attribution by cryptographic identity, CSV export, and key directory handling. It is provided on a reasonable-efforts basis. There is <strong>no uptime SLA</strong>, and none should be inferred from these terms or from anything on this website.</p>
+    <p>A plan does not get you revenue. What agents pay you depends on the agents, your prices, and your settlement rail — see above. <strong>Nothing here is a projection or promise of earnings.</strong></p>
+
+    <h3>Suspension</h3>
+    <p>An account may be suspended for non-payment, or for use that attacks the service or other customers. Where the reason is non-payment, you get notice and a chance to fix the card first.</p>
+
+    <h3>Payment processing</h3>
+    <p>Card payments are processed by <strong>Stripe</strong>. Wayleave never sees or stores your full card number. Stripe's own terms apply to their handling of it.</p>
 
     <h2>This website</h2>
     <p>Provided as is. It may be changed, moved, or taken down without notice. Content here — including any figures about agent traffic, latency, or test coverage — is offered in good faith and accurately as of the date shown, but it is descriptive, not a warranty, and not professional advice of any kind.</p>
     <p>Links to third-party sites and packages are for convenience. Their content and terms are theirs, not mine.</p>
 
     <h2>Don't do these things</h2>
-    <p>Please don't attack the site, submit other people's email addresses to the waitlist, submit deliberately false entries to skew the result, or scrape it in a way that degrades it for anyone else. The traffic-volume answers are being used to make a real decision, so poisoning them mostly just wastes everyone's time.</p>
+    <p>Please don't attack the site or the meter, sign up using someone else's identity or card, send deliberately falsified crossing events to distort another account's ledger, or scrape either service in a way that degrades it for anyone else.</p>
 
     <h2>Liability</h2>
-    <p>To the fullest extent the law allows, no liability is accepted for indirect, incidental, or consequential loss arising from use of this website or the waitlist — including lost revenue, lost data, or requests wrongly allowed or wrongly blocked by the software. The MIT licence's disclaimer applies to the code. Nothing here limits liability where the law does not permit it.</p>
+    <p>To the fullest extent the law allows, no liability is accepted for indirect, incidental, or consequential loss arising from use of this website, the software, or the hosted meter — including lost revenue, uncollected agent payments, lost data, or requests wrongly allowed or wrongly blocked. Where liability cannot be excluded, it is limited to the amount you paid for the meter in the twelve months before the claim. The MIT licence's disclaimer applies to the code. Nothing here limits liability where the law does not permit it, and nothing here affects statutory rights you have as a consumer.</p>
 
     <h2>Contact</h2>
     <p>Wayleave is an independent open-source project maintained by Gibran Corbin. Anything at all: <a href="mailto:admin@sendable.me">admin@sendable.me</a>.</p>

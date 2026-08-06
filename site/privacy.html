@@ -4,19 +4,19 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Privacy notice — Wayleave</title>
-<meta name="description" content="What Wayleave collects when you join the waitlist, where it is stored, and how to have it deleted." />
+<meta name="description" content="What Wayleave collects when you use the hosted meter, where it is stored, and how to have it deleted." />
 
 
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://wayleave.dev/" />
 <meta property="og:title" content="Privacy notice — Wayleave" />
-<meta property="og:description" content="What Wayleave collects when you join the waitlist, where it is stored, and how to have it deleted." />
+<meta property="og:description" content="What Wayleave collects when you use the hosted meter, where it is stored, and how to have it deleted." />
 <meta property="og:image" content="https://wayleave.dev/og-card.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Privacy notice — Wayleave" />
-<meta name="twitter:description" content="What Wayleave collects when you join the waitlist, where it is stored, and how to have it deleted." />
+<meta name="twitter:description" content="What Wayleave collects when you use the hosted meter, where it is stored, and how to have it deleted." />
 <meta name="twitter:image" content="https://wayleave.dev/og-card.png" />
 
 <link rel="stylesheet" href="fonts.css" />
@@ -65,34 +65,48 @@
     <a class="legal__back" href="/">← Back to Wayleave</a>
 
     <h1>Privacy notice</h1>
-    <p class="legal__meta">Last updated 30 July 2026.</p>
+    <p class="legal__meta">Last updated 5 August 2026.</p>
 
-    <p>This is a one-page site with a waitlist form on it. There is no product account, no login, and no tracking. This notice describes everything that actually happens, in plain terms.</p>
+    <p>Two things sit under this notice. <strong>wayleave.dev</strong> is a marketing site that collects nothing. <strong>meter.wayleave.dev</strong> is a product with accounts and a paid subscription, and it necessarily collects more. Both are described below, in plain terms.</p>
 
-    <h2>What is collected</h2>
-    <p>Only what you type into the waitlist form:</p>
+    <h2>This website collects nothing</h2>
+    <p>There is no form on wayleave.dev, no analytics script, no advertising pixel, and no cookie is set. The light/dark toggle keeps your choice in memory for the current page view only — it is not stored and does not persist. Nothing you do here is recorded beyond ordinary server logs.</p>
+    <p>An earlier version of this site ran a waitlist form. It has been removed. Addresses collected by it are being deleted; if you joined and want yours removed immediately, email and it will be done that day.</p>
+
+    <h2>The meter collects what an account requires</h2>
+    <p>If you sign in to <a href="https://meter.wayleave.dev">meter.wayleave.dev</a>:</p>
     <ul>
-      <li><strong>Your email address.</strong> Required, because the entire purpose of the list is to email you once.</li>
-      <li><strong>Your answer to the traffic question.</strong> Optional. A single choice from a dropdown. Leave it blank and nothing is recorded for it.</li>
+      <li><strong>Your email address, and a GitHub identifier if you sign in that way.</strong> This is your account.</li>
+      <li><strong>A hash of each API key you issue.</strong> The key itself is shown once and never stored, so a breach of our database cannot yield a working key.</li>
+      <li><strong>Crossing events your middleware sends us.</strong> This is the ledger: a timestamp, the lane, the route path, a price if you set one, and the cryptographic identity or IP-derived identifier of the agent that crossed. <em>You choose what your app sends.</em> If your route paths or agent identifiers contain personal data, that data reaches us — so don't put it there.</li>
+      <li><strong>Billing state.</strong> Your Stripe customer and subscription identifiers, plan status, trial end, and renewal date.</li>
+      <li><strong>Your settlement address, if you set one.</strong> A crypto address you control. Wayleave never holds funds sent to it.</li>
     </ul>
-    <p>Nothing else is collected. There is no analytics script on this site, no advertising pixel, and no cookie is set. The light/dark toggle keeps your choice in memory for the current page view only — it is not stored and does not persist.</p>
+    <p>Card numbers are never collected, seen, or stored by Wayleave. Payment details go directly to Stripe.</p>
 
-    <h2>Where it goes</h2>
-    <p>Form submissions are received and stored by <strong>Netlify</strong>, which hosts this site, using their Forms feature. They act as the processor; the data sits in that project's form submissions. Netlify's own handling is covered by their <a href="https://www.netlify.com/privacy/" target="_blank" rel="noopener noreferrer">privacy policy</a>.</p>
-    <p>Your address is not sold, rented, shared, or passed to any advertiser, data broker, or third-party mailing tool.</p>
+    <h2>Who processes it</h2>
+    <ul>
+      <li><strong>Netlify</strong> hosts wayleave.dev. <a href="https://www.netlify.com/privacy/" target="_blank" rel="noopener noreferrer">Their privacy policy</a>.</li>
+      <li><strong>Railway</strong> hosts the meter service.</li>
+      <li><strong>Supabase</strong> stores meter accounts and the ledger, and provides sign-in.</li>
+      <li><strong>Stripe</strong> processes subscription payments and holds the card details. <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer">Their privacy policy</a>.</li>
+      <li><strong>GitHub</strong>, only if you choose to sign in with it, and only to confirm who you are.</li>
+    </ul>
+    <p>Your data is not sold, rented, shared, or passed to any advertiser, data broker, or third-party mailing tool. There is no analytics or tracking product in either service.</p>
 
     <h2>Server logs and fonts</h2>
     <p>Like any website, requests reach a server that records ordinary technical details such as IP address, browser user-agent, and the page requested. That is Netlify's standard hosting log, not something built for this site.</p>
     <p><strong>No third-party requests are made.</strong> The typefaces are served from this domain rather than from Fontshare or Google Fonts, so your browser never contacts a font CDN and no outside service sees your IP address because of a visit here. Every file this page loads comes from wayleave.dev.</p>
 
-    <h2>How the address is used</h2>
-    <p>One email, if and when the hosted meter becomes a real product. That is the whole plan. No newsletter, no drip sequence, no "we thought you'd also like." If the meter never gets built, you may receive one email saying so, or nothing at all.</p>
+    <h2>How it is used</h2>
+    <p>Your email is used to run your account: sign-in, receipts, and messages about your subscription or an outage. No newsletter, no drip sequence, no "we thought you'd also like." Ledger data is used to show you your own ledger and to bill your plan. It is never aggregated into a product sold to anyone else, and no other customer can see it.</p>
 
     <h2>How long it is kept</h2>
-    <p>Until the waitlist has served its purpose or you ask for removal, whichever comes first. This list exists to decide whether to build one specific thing; it is not a permanent marketing database.</p>
+    <p>Account and ledger data are kept while your account is open, and deleted within 30 days of you closing it. Billing records are kept for seven years, because tax law requires it — that exception survives a deletion request, and it is the only one.</p>
 
     <h2>Getting your data deleted</h2>
-    <p>Email <a href="mailto:admin@sendable.me">admin@sendable.me</a> and ask. No form, no verification hoops, no "are you sure" sequence. You are entitled to ask what is held about you, to have it corrected, and to have it erased — and since the answer is "an email address and possibly one dropdown value," honoring that is straightforward.</p>
+    <p>Email <a href="mailto:admin@sendable.me">admin@sendable.me</a> and ask. No form, no verification hoops, no "are you sure" sequence. You are entitled to ask what is held about you, to have it corrected, to have it exported, and to have it erased. Your ledger is already exportable as CSV from the dashboard without asking anyone.</p>
+    <p>Deleting your account deletes your ledger. That is the point of it, but it is not reversible, so export first if the records matter to you.</p>
 
     <h2>Children</h2>
     <p>This is developer tooling. It is not directed at children and no part of it is designed to appeal to them.</p>
