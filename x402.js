@@ -57,6 +57,37 @@ export function toAtomicUnits(usd, decimals = DEFAULT_DECIMALS) {
 }
 
 /**
+ * The settlement asset per network, and the EIP-712 domain its contract
+ * enforces.
+ *
+ * Both are REQUIRED by the facilitator and neither can be guessed:
+ *
+ *   - Omit `asset` and CDP rejects the call outright ("x402V1PaymentRequirements
+ *     requires 'asset'"). Until 0.4.1 this module omitted it whenever the
+ *     caller did not pass one, which was the default. No default configuration
+ *     could settle a payment.
+ *   - Omit `extra` and CDP identifies the payer and then refuses with "missing
+ *     EIP-712 domain parameters". The agent signs an EIP-3009 authorization
+ *     against the token's own domain, and the facilitator has to be told which
+ *     domain to check the signature against.
+ *
+ * The name genuinely differs per deployment -- Base mainnet USDC calls itself
+ * "USD Coin", the Sepolia test token calls itself "USDC" -- so one hardcoded
+ * value is wrong on the other chain. These were read from each contract and
+ * checked against its own DOMAIN_SEPARATOR.
+ */
+const KNOWN_ASSETS = {
+  'base': {
+    asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    extra: { name: 'USD Coin', version: '2' }, decimals: 6,
+  },
+  'base-sepolia': {
+    asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    extra: { name: 'USDC', version: '2' }, decimals: 6,
+  },
+};
+
+/**
  * Build a `verifyPayment(proof, ctx)` for the Coinbase x402 facilitator.
  *
  * @param {object} opts
@@ -74,13 +105,31 @@ export function toAtomicUnits(usd, decimals = DEFAULT_DECIMALS) {
  */
 export function coinbaseFacilitator({
   apiKeyId, apiKeySecret, receivingAddress,
-  network = 'base', asset = null, decimals = DEFAULT_DECIMALS,
+  network = 'base', asset = null, decimals = null, extra = null,
   settle = true, baseUrl = DEFAULT_BASE, onError = () => {}, fetch: f = fetch,
 } = {}) {
   if (!apiKeyId || !apiKeySecret)
     throw new Error('coinbaseFacilitator requires apiKeyId and apiKeySecret');
   if (!receivingAddress)
     throw new Error('coinbaseFacilitator requires receivingAddress — the address YOU get paid at');
+
+  const known = KNOWN_ASSETS[network];
+  const resolvedAsset = asset ?? known?.asset ?? null;
+  const resolvedExtra = extra ?? known?.extra ?? null;
+  const resolvedDecimals = decimals ?? known?.decimals ?? DEFAULT_DECIMALS;
+
+  // Fail here rather than on the first payment. A facilitator that cannot
+  // possibly settle should not be constructible: the alternative is a service
+  // that looks configured, passes its own tests, and denies every real payment
+  // with a 400 from someone else's API.
+  if (!resolvedAsset)
+    throw new Error(
+      `coinbaseFacilitator: no settlement asset known for network "${network}" — ` +
+      'pass asset: "0x..." (the token contract payment settles in)');
+  if (!resolvedExtra?.name || !resolvedExtra?.version)
+    throw new Error(
+      `coinbaseFacilitator: no EIP-712 domain known for network "${network}" — ` +
+      'pass extra: { name, version } as the token contract reports them');
 
   const base = baseUrl.replace(/\/$/, '');
 
@@ -104,13 +153,16 @@ export function coinbaseFacilitator({
         // matches. Under the exact scheme the transfer MUST equal this and
         // MUST land at payTo, so a wrong amount or wrong address cannot come
         // back valid. That is stronger than trusting a number the payer sent.
-        maxAmountRequired: toAtomicUnits(ctx.price, decimals),
+        maxAmountRequired: toAtomicUnits(ctx.price, resolvedDecimals),
         resource: ctx.resource ?? ctx.path ?? '',
         description: '',
         mimeType: 'application/json',
         payTo: receivingAddress,
         maxTimeoutSeconds: 60,
-        ...(asset ? { asset } : {}),
+        asset: resolvedAsset,
+        // The domain the payer signed against. Without it the facilitator can
+        // read the payload and still not check the signature.
+        extra: resolvedExtra,
       };
     } catch (err) {
       return deny(`cannot build payment requirements: ${err.message}`);

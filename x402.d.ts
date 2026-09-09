@@ -17,6 +17,13 @@ export interface CoinbaseFacilitatorOptions {
   /** Asset decimals. 6 for USDC. */
   decimals?: number;
   /**
+   * The EIP-712 domain the payer signed against, as the token contract
+   * reports it. Defaults are known for `base` and `base-sepolia`; supply it
+   * for any other network. Required by the facilitator — without it a payment
+   * is read, the payer identified, and the signature never checked.
+   */
+  extra?: { name: string; version: string };
+  /**
    * true (default) submits the payment on-chain. false only verifies it,
    * which is useful for a dry run but pays nobody and never grants access.
    */

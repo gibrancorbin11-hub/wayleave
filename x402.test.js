@@ -133,3 +133,61 @@ test('the whole friendly path composes', async () => {
   assert.equal(paid.billed, 0.05);
   assert.equal(sent.at(-1).paymentRef, '0xdead');
 });
+
+// ── what the facilitator must send, learned the hard way ────────────────
+//
+// Both fields below were missing until 0.4.1, and each alone made settlement
+// impossible in every default configuration. The failure was invisible here:
+// the module built, these tests passed, and CDP returned 400 for reasons that
+// never reached the customer. Proven against the live rail on base-sepolia.
+
+/** Capture the body the facilitator actually puts on the wire. */
+function capture(over = {}) {
+  const box = {};
+  const f = fac(async (_url, init) => {
+    box.body = JSON.parse(init.body);
+    return { ok: true, status: 200, json: async () => ({ isValid: true, success: true, transaction: '0xabc' }) };
+  }, over);
+  return { f, box };
+}
+
+test('the settlement asset is sent, because CDP rejects the call without it', async () => {
+  const { f, box } = capture({ network: 'base' });
+  await f(...args);
+  assert.equal(box.body.paymentRequirements.asset,
+    '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    "no asset sent — CDP answers 'x402V1PaymentRequirements requires asset' and nobody is paid");
+});
+
+test("the token's EIP-712 domain is sent, or the signature cannot be checked", async () => {
+  const { f, box } = capture({ network: 'base' });
+  await f(...args);
+  assert.deepEqual(box.body.paymentRequirements.extra, { name: 'USD Coin', version: '2' },
+    'without extra, CDP identifies the payer and then fails on the domain');
+});
+
+test('the EIP-712 name differs per network and is never guessed', async () => {
+  const main = capture({ network: 'base' });
+  await main.f(...args);
+  const test_ = capture({ network: 'base-sepolia' });
+  await test_.f(...args);
+  assert.equal(main.box.body.paymentRequirements.extra.name, 'USD Coin');
+  assert.equal(test_.box.body.paymentRequirements.extra.name, 'USDC',
+    'Sepolia USDC reports a different name; the mainnet one is rejected on chain');
+  assert.notEqual(main.box.body.paymentRequirements.asset,
+                  test_.box.body.paymentRequirements.asset);
+});
+
+test('an unknown network refuses to build rather than denying every payment later', () => {
+  assert.throws(() => coinbaseFacilitator({
+    apiKeyId: 'id', apiKeySecret: cdpTestSecret, receivingAddress: '0xCUSTOMER',
+    network: 'polygon',
+  }), /no settlement asset known/);
+});
+
+test('an unknown network works when the caller supplies asset and domain', () => {
+  assert.doesNotThrow(() => coinbaseFacilitator({
+    apiKeyId: 'id', apiKeySecret: cdpTestSecret, receivingAddress: '0xCUSTOMER',
+    network: 'polygon', asset: '0xtoken', extra: { name: 'USD Coin', version: '2' },
+  }));
+});

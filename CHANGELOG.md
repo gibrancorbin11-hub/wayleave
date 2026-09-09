@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.1
+
+### The Coinbase rail could not settle a payment in any default configuration
+
+Two required fields were missing from every request this module made, and
+either one alone was fatal. Both were found by settling a real payment on
+base-sepolia rather than by reading the code, because locally nothing looked
+wrong: the module built, its tests passed, and the failures were 400s from
+someone else's API that never reached the customer.
+
+`asset` was omitted whenever the caller did not pass one, which was the
+default. CDP rejects that outright — "x402V1PaymentRequirements requires
+'asset'". The settlement asset is now defaulted per network and the
+facilitator refuses to construct for a network it has no default for, rather
+than building cleanly and denying every payment at runtime.
+
+`extra` was never sent at all. It carries the EIP-712 domain the agent signed
+its EIP-3009 authorization against, and without it the facilitator gets far
+enough to identify the payer and then fails with "missing EIP-712 domain
+parameters". It cannot be guessed: Base mainnet USDC calls itself "USD Coin"
+and the Sepolia token calls itself "USDC", so a single hardcoded value is
+wrong on one of the two chains. Both were read from the contracts and checked
+against each one's own DOMAIN_SEPARATOR.
+
+With both fixed, a real payment settles: 402 challenge, agent signs, retries
+with proof, facilitator verifies and submits on-chain, resource released, and
+USDC moves to the receiving address. Gas is paid by the facilitator, not the
+agent and not you.
+
+If you have been running this rail and seeing nothing settle, this is why.
+
 ## 0.4.0
 
 ### The Coinbase rail authenticates the way CDP actually requires
