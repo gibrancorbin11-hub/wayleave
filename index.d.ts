@@ -328,7 +328,9 @@ export interface WayleaveOptions {
 export function buildParams(
   keyid: string,
   created: number,
-  expires: number
+  expires: number,
+  /** Appended as `;nonce="..."` when present. */
+  nonce?: string | null
 ): string;
 
 /**
@@ -342,7 +344,13 @@ export function signRequest(
   keyid: string,
   directoryUrl: string,
   created?: number,
-  expires?: number
+  expires?: number,
+  /**
+   * Opt in to a single-use signature. `true` generates 16 random bytes; a
+   * string is used verbatim. Omit it if your client retries by resending the
+   * same headers — a nonce turns that retry into a rejected replay.
+   */
+  nonce?: string | boolean | null
 ): Record<string, string>;
 
 /** Verify a presented signature against your configured directories. */

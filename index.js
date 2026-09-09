@@ -18,7 +18,7 @@
  */
 
 import { createPublicKey, verify as edVerify, sign as edSign,
-         createHash, randomUUID } from 'node:crypto';
+         createHash, randomUUID, randomBytes } from 'node:crypto';
 // Same package, zero dependencies, ~9KB. Importing it unconditionally costs
 // nothing measurable and makes `meter: { apiKey }` work without ceremony.
 import { MeterSink } from './meter.js';
@@ -91,18 +91,38 @@ function sigBase(components, ctx, paramsRaw) {
   return Buffer.from(lines.join('\n'));
 }
 
-export function buildParams(keyid, created, expires) {
+export function buildParams(keyid, created, expires, nonce = null) {
   return `("@authority" "signature-agent");created=${created};` +
-         `keyid="${keyid}";alg="ed25519";expires=${expires};tag="web-bot-auth"`;
+         `keyid="${keyid}";alg="ed25519";expires=${expires};tag="web-bot-auth"` +
+         (nonce ? `;nonce="${nonce}"` : '');
 }
 
-/** What a legitimate agent operator's SDK does before sending. */
+/**
+ * What a legitimate agent operator's SDK does before sending.
+ *
+ * `nonce` is opt-in, and opting in is what makes a signature single-use.
+ * Without one, `verifySignature` has nothing to remember a request by, and
+ * `replayProtection` on the verifying side is inert however it is configured
+ * — the Web Bot Auth profile covers only `@authority`, so the same signature
+ * is valid for every path on the host until it expires.
+ *
+ * It is not the default because it changes what a retry means. An agent that
+ * signs once and resends those exact headers after a socket error is doing
+ * something reasonable, and a nonce turns that retry into a rejected replay.
+ * Callers that re-sign per attempt should pass `true`; callers that retry with
+ * held headers should not.
+ *
+ * Pass a string to supply your own, or `true` for 16 random bytes.
+ */
 export function signRequest(headers, authority, privateKey, keyid, directoryUrl,
                             created = Math.floor(Date.now() / 1000),
-                            expires = created + 300) {
+                            expires = created + 300,
+                            nonce = null) {
   // Structured-field string: the value is sent quoted.
   headers['signature-agent'] = `"${directoryUrl}"`;
-  const params = buildParams(keyid, created, expires);
+  const n = nonce === true ? randomBytes(16).toString('base64url')
+          : (typeof nonce === 'string' && nonce ? nonce : null);
+  const params = buildParams(keyid, created, expires, n);
   const base = sigBase(['@authority', 'signature-agent'],
                        { authority, headers }, params);
   const sig = edSign(null, base, privateKey);

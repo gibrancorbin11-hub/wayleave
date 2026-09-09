@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0
+
+### `signRequest` can issue a nonce, so replay protection is no longer inert
+
+`verifySignature` has always read RFC 9421's `nonce` parameter, and the gate
+has always refused a nonce it had seen before. Nothing in this package could
+produce one. `replayProtection: true` was therefore configuration with no
+effect for anyone signing with our own helper, and a captured signature stayed
+usable for the whole validity window — on every path of the host, because the
+Web Bot Auth profile covers only `@authority`.
+
+`signRequest(..., nonce)` closes that. Pass `true` for 16 random bytes, or a
+string of your own. `buildParams` takes the same optional argument.
+
+It is opt-in rather than the default because it changes what a retry means: an
+agent that signs once and resends those exact headers after a socket error is
+behaving reasonably, and a nonce turns that retry into a rejected replay. Sign
+per attempt and pass `true`; hold headers across attempts and do not.
+
+Nonces are namespaced by directory and keyid before they are remembered, so
+two operators choosing the same value cannot burn each other's.
+
+Unchanged for existing callers: omit the argument and the wire format, the
+lanes and the retry behaviour are exactly as they were in 0.3.0.
+
 ## 0.3.0
 
 **A bug that meant nobody could ever have been paid, and the fix that makes

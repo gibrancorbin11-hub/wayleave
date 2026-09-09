@@ -91,6 +91,7 @@ rather than quietly denying every payment.
 ## Guarantees, honestly stated
 
 - Signature verification is real Ed25519 over an RFC 9421 signature base — forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected. Tested adversarially, and against other implementations' wire formats rather than only its own.
+- A signature is single-use only when the signer sends a nonce. `signRequest(..., nonce)` will issue one (`true` for random, or supply your own) and the gate then refuses a repeat. Without a nonce there is nothing to remember a request by, and a captured signature stays usable until it expires — on any path of the host, since the Web Bot Auth profile covers only `@authority`. Opt in when you sign per attempt; leave it off if your client retries by resending the same headers.
 - Signature parameters are parsed as an RFC 9421 dictionary: order-independent, `alg` enforced as Ed25519, any signature label, and the signature base is built from whatever components the signer declared. Requests signed in Cloudflare's documented format verify.
 - Local verification is benchmarked by the tests; latency depends on your hardware and configuration. Payment-provider network calls add latency.
 - The metering hook can throw, crash, or hang your billing backend — serving continues. Your uptime never depends on ours.
