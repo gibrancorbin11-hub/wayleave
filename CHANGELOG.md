@@ -2,6 +2,28 @@
 
 ## 0.4.0
 
+### The Coinbase rail authenticates the way CDP actually requires
+
+`wayleave/x402` sent `cb-access-key` and `cb-access-secret` headers. That is
+not how the Coinbase Developer Platform authenticates, so every verify and
+settle call was refused before it reached the rail — the facilitator was
+wired, credentialed and incapable of moving money.
+
+`cdp-auth.js` mints the short-lived, request-bound bearer token CDP expects,
+signed with the Secret API Key. It accepts the PEM and the base64 key formats
+Coinbase hands out, binds the token to the exact method and URL being called,
+and refuses a non-HTTPS endpoint or one carrying credentials in the URL. The
+secret never leaves the process and never reaches a log line.
+
+### A dry run no longer opens the door
+
+With `settle: false`, `verifyPayment` returned `{ ok: true }` on a valid
+authorization. A valid authorization is not settled money, so verification-only
+mode released the priced resource and recorded billed revenue while nobody had
+paid. It now denies with `Payment verified only; settlement is disabled`. If
+you ran a dry run against real routes, that traffic was served for free and the
+claimed amounts in your ledger were never collectable.
+
 ### `signRequest` can issue a nonce, so replay protection is no longer inert
 
 `verifySignature` has always read RFC 9421's `nonce` parameter, and the gate

@@ -27,7 +27,8 @@
     "meter.d.ts",
     "meter.js",
     "x402.d.ts",
-    "x402.js"
+    "x402.js",
+    "cdp-auth.js"
   ],
   "scripts": {
     "test": "node --test *.test.js"

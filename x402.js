@@ -1,3 +1,4 @@
+import { cdpBearerToken } from './cdp-auth.js';
 /**
  * wayleave/x402 — a ready-made `verifyPayment` for the Coinbase x402 rail.
  *
@@ -148,7 +149,9 @@ export function coinbaseFacilitator({
 
     if (d.isValid !== true)
       return deny(`payment not valid: ${d.invalidReason ?? 'no reason given'}`);
-    return { ok: true, ref: d.payer ? `payer:${d.payer}` : null };
+    // A valid authorization is not settled money. Do not release a priced
+    // resource or record billed revenue from a verification-only dry run.
+    return { ok: false, reason: 'Payment verified only; settlement is disabled' };
   };
 }
 
@@ -160,8 +163,7 @@ async function post(f, url, body, keyId, keySecret) {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'cb-access-key': keyId,
-        'cb-access-secret': keySecret,
+        authorization: `Bearer ${cdpBearerToken({ apiKeyId: keyId, apiKeySecret: keySecret, url })}`,
       },
       body: JSON.stringify(body),
       signal: ctrl.signal,

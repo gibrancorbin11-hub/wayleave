@@ -1,3 +1,5 @@
+import { generateKeyPairSync as generateCDPTestKey } from 'node:crypto';
+const cdpTestSecret = generateCDPTestKey('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { coinbaseFacilitator, toAtomicUnits } from './x402.js';
@@ -8,7 +10,7 @@ const ok200 = (data) => async () => ({ ok: true, status: 200, json: async () => 
 const args = ['{"scheme":"exact","payload":{}}', { price: 0.05, resource: '/api/premium' }];
 
 const fac = (fetchImpl, over = {}) => coinbaseFacilitator({
-  apiKeyId: 'id', apiKeySecret: 'secret', receivingAddress: '0xCUSTOMER',
+  apiKeyId: 'id', apiKeySecret: cdpTestSecret, receivingAddress: '0xCUSTOMER',
   fetch: fetchImpl, ...over,
 });
 

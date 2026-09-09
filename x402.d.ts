@@ -18,7 +18,7 @@ export interface CoinbaseFacilitatorOptions {
   decimals?: number;
   /**
    * true (default) submits the payment on-chain. false only verifies it,
-   * which is useful for a dry run but pays nobody.
+   * which is useful for a dry run but pays nobody and never grants access.
    */
   settle?: boolean;
   baseUrl?: string;
