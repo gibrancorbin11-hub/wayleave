@@ -3,676 +3,81 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Wayleave — get paid when AI agents cross your app</title>
-<meta name="description" content="Free middleware verifies and prices AI agent traffic. Agents pay at the door — settled on a licensed rail, direct to your account, before data moves. The hosted meter keeps the ledger. We never touch your funds." />
+<title>Wayleave — observe, control and monetize agent traffic</title>
+<meta name="description" content="Understand automated traffic, apply route-level access policies, and charge payment-ready agents. Open-source middleware and a hosted ledger." />
 
 
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://wayleave.dev/" />
-<meta property="og:title" content="Wayleave — get paid when AI agents cross your app" />
-<meta property="og:description" content="Free middleware verifies and prices AI agent traffic. Agents pay at the door — settled on a licensed rail, direct to your account, before data moves. The hosted meter keeps the ledger. We never touch your funds." />
+<meta property="og:title" content="Wayleave — observe, control and monetize agent traffic" />
+<meta property="og:description" content="Understand automated traffic, apply route-level access policies, and charge payment-ready agents. Open-source middleware and a hosted ledger." />
 <meta property="og:image" content="https://wayleave.dev/og-card.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Wayleave — get paid when AI agents cross your app" />
-<meta name="twitter:description" content="Free middleware verifies and prices AI agent traffic. Agents pay at the door — settled on a licensed rail, direct to your account, before data moves. The hosted meter keeps the ledger. We never touch your funds." />
+<meta name="twitter:title" content="Wayleave — observe, control and monetize agent traffic" />
+<meta name="twitter:description" content="Understand automated traffic, apply route-level access policies, and charge payment-ready agents. Open-source middleware and a hosted ledger." />
 <meta name="twitter:image" content="https://wayleave.dev/og-card.png" />
 
 <link rel="stylesheet" href="fonts.css" />
 
 <link rel="stylesheet" href="base.css" />
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="home.css" />
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A0D0A'/%3E%3Cpath d='M8 24 L24 8' stroke='%233FE28F' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%233FE28F'/%3E%3C/svg%3E" />
+<link rel="icon" href="mark.svg" type="image/svg+xml" />
+  <script defer src="https://command-center-production-b33a.up.railway.app/px.js" data-site="wayleave"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
-
-<header class="site-header">
-  <div class="container container--wide site-header__inner">
-    <a href="#" class="brand" aria-label="Wayleave home">
-      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <rect x="1" y="1" width="30" height="30" rx="8" stroke="currentColor" stroke-width="1.4" opacity="0.35"/>
-        <path d="M9 23 L23 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-        <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
-      </svg>
-      Wayleave
-    </a>
-    <nav class="main-nav" aria-label="Primary">
-      <a href="#shipping">The free part</a>
-      <a href="#meter">The paid part</a>
-      <a href="#status">Status</a>
-      <a href="https://meter.wayleave.dev/docs.html">Docs</a>
-    </nav>
-    <div class="header-actions">
-      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark and light mode">
-        <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none">
-          <circle cx="12" cy="12" r="4.2"/>
-          <path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" stroke-linecap="round"/>
-        </svg>
-        <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.7 6.7 0 0 0 10.5 10.5Z" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      <a class="btn btn-ghost btn-npm" href="https://www.npmjs.com/package/wayleave" target="_blank" rel="noopener noreferrer"><span>npm i wayleave</span></a>
-      <a class="btn btn-primary" href="https://meter.wayleave.dev"><span>Sign in</span></a>
-    </div>
-  </div>
+<header class="header wrap">
+<a class="brand" href="/" aria-label="Wayleave home"><svg viewBox="0 0 48 40" aria-hidden="true"><path d="M3 35 23 3h12L15 35Z" fill="currentColor"/><circle cx="37" cy="30" r="6" fill="currentColor"/></svg><span>WAYLEAVE</span></a>
+<nav aria-label="Primary"><a href="#product">Product</a><a href="#setup">How it works</a><a href="#pricing">Pricing</a><a href="https://meter.wayleave.dev/docs.html">Docs</a></nav>
+<div class="header-actions"><button class="theme" id="themeToggle" aria-label="Switch to light theme" type="button">◐</button><a class="button small" href="https://meter.wayleave.dev/account.html">Sign in <span aria-hidden="true">↗</span></a></div>
 </header>
-
 <main id="main">
+<section class="hero wrap">
+<div class="hero-copy"><p class="eyebrow"><span class="signal"></span> OPEN-SOURCE AGENT INFRASTRUCTURE</p>
+<h1>The metering layer for the <span>agentic web.</span></h1>
+<p class="lead">Know what’s crossing your app.</p><p class="intro">Observe agent traffic. Control access.<br>Charge payment-ready agents.</p>
+<div class="actions"><a class="button primary" href="#setup">Start observing <span aria-hidden="true">→</span></a><a class="button" href="#demo">Explore the demo</a></div>
+<div class="install"><code>npm install wayleave</code><button type="button" data-copy="npm install wayleave" aria-label="Copy npm install command">Copy</button></div>
+<p class="micro">Free MIT middleware · Node 18+ · No runtime dependencies</p></div>
+<div class="dashboard" id="demo" tabindex="-1" aria-label="Interactive dashboard with illustrative sample data">
+<div class="dashboard-top"><span><svg viewBox="0 0 48 40" aria-hidden="true"><path d="M3 35 23 3h12L15 35Z" fill="currentColor"/><circle cx="37" cy="30" r="6" fill="currentColor"/></svg> <strong>wayleave</strong> <span class="muted">observe</span></span><span class="sample">SAMPLE DATA</span></div>
+<div class="chart-head"><div><p class="muted">Agent &amp; suspected bot requests</p><strong class="big">1,284</strong></div><span class="period">Last 24 hours</span></div>
+<div class="chart" role="img" aria-label="Illustrative hourly agent traffic, sample data"><i style="--height:31%"></i><i style="--height:46%"></i><i style="--height:34%"></i><i style="--height:52%"></i><i style="--height:43%"></i><i style="--height:62%"></i><i style="--height:38%"></i><i style="--height:50%"></i><i style="--height:74%"></i><i style="--height:53%"></i><i style="--height:48%"></i><i style="--height:70%"></i><i style="--height:56%"></i><i style="--height:65%"></i><i style="--height:48%"></i><i style="--height:77%"></i><i style="--height:69%"></i><i style="--height:88%"></i><i style="--height:60%"></i><i style="--height:76%"></i><i style="--height:57%"></i><i style="--height:83%"></i><i style="--height:95%"></i><i style="--height:71%"></i><i style="--height:86%"></i><i style="--height:65%"></i><i style="--height:78%"></i><i style="--height:92%"></i><i style="--height:76%"></i><i style="--height:100%"></i></div>
+<div class="mini-stats"><div><span>Signed identities</span><strong>2 <small>verified</small></strong></div><div><span>Payment requests</span><strong>0 <small>observe mode</small></strong></div><div><span>Confirmed settlement</span><strong>$0.00</strong></div></div>
+<div class="table-head"><h2>Recent crossings</h2><label class="sr-only" for="trafficFilter">Filter sample crossings</label><select id="trafficFilter"><option value="all">All traffic</option><option value="verified_agent">Verified</option><option value="declared_agent">Declared</option><option value="suspected_bot">Suspected</option><option value="human">Browser-shaped</option></select></div>
+<div class="table-scroll"><table><thead><tr><th>Identity / signal</th><th>Route</th><th>Classification</th></tr></thead><tbody>
+<tr data-lane="verified_agent"><td>search.example</td><td>/api/search</td><td><span class="badge verified">Verified</span></td></tr>
+<tr data-lane="declared_agent"><td>Declared crawler</td><td>/docs</td><td><span class="badge declared">Declared</span></td></tr>
+<tr data-lane="suspected_bot"><td>Automation signals</td><td>/api/products</td><td><span class="badge suspected">Suspected</span></td></tr>
+<tr data-lane="verified_agent"><td>research.example</td><td>/api/data</td><td><span class="badge verified">Verified</span></td></tr>
+<tr data-lane="human"><td>Browser-shaped</td><td>/</td><td><span class="badge">Unverified</span></td></tr>
+</tbody></table></div><p class="demo-note">Illustrative traffic, not customer results. Only signed identities are cryptographically verified.</p>
+</div></section>
+<div class="proof wrap"><span>Built for your Node app</span><span>HTTP Message Signatures · RFC 9421</span><a href="https://github.com/gibrancorbin11-hub/wayleave">Inspect the source ↗</a></div>
+<section class="wrap product" id="product"><div class="section-heading"><p class="eyebrow">ONE GATE. THREE STEPS.</p><h2>Understand first.<br><span class="muted">Set the terms next.</span></h2></div>
+<div class="cards"><article><span class="step">01 / OBSERVE</span><h3>See the traffic.</h3><p>Record requests by route and classification. Separate signed agents, self-declared crawlers and suspected automation.</p><div class="feature-art bars-small" aria-hidden="true"><i style="--height:31%"></i><i style="--height:46%"></i><i style="--height:34%"></i><i style="--height:52%"></i><i style="--height:43%"></i><i style="--height:62%"></i><i style="--height:38%"></i><i style="--height:50%"></i><i style="--height:74%"></i><i style="--height:53%"></i><i style="--height:48%"></i><i style="--height:70%"></i><i style="--height:56%"></i><i style="--height:65%"></i><i style="--height:48%"></i><i style="--height:77%"></i><i style="--height:69%"></i><i style="--height:88%"></i><i style="--height:60%"></i><i style="--height:76%"></i><i style="--height:57%"></i><i style="--height:83%"></i><i style="--height:95%"></i><i style="--height:71%"></i><i style="--height:86%"></i><i style="--height:65%"></i><i style="--height:78%"></i><i style="--height:92%"></i><i style="--height:76%"></i><i style="--height:100%"></i></div><a href="#setup">Connect your app →</a></article>
+<article><span class="step">02 / CONTROL</span><h3>Choose what crosses.</h3><p>Apply allow, deny and rate-limit policies by lane and route. Start with no enforcement, then add rules deliberately.</p><div class="rule-list"><span>Observe requests <b>ON</b></span><span>Route policies <b>YOUR RULES</b></span><span>Payment enforcement <b>OPTIONAL</b></span></div><a href="https://meter.wayleave.dev/docs.html">Read the integration docs ↗</a></article>
+<article><span class="step">03 / MONETIZE</span><h3>Charge ready agents.</h3><p>Return a price on selected routes. Access can be released after payment verification through your configured provider.</p><div class="payment-flow"><span>Agent</span><span aria-hidden="true">→</span><span>Provider</span><span aria-hidden="true">→</span><span>You</span></div><p class="fine">A priced request is not earned revenue. Payment support depends on the agent and provider.</p><a href="https://github.com/gibrancorbin11-hub/wayleave#how-payment-actually-works">How payments work ↗</a></article></div></section>
+<section class="wrap setup" id="setup"><div><p class="eyebrow">FROM INSTALL TO FIRST REQUEST</p><h2>Start with visibility.</h2><p class="intro">No wallet or payment rules needed.</p><ol class="steps"><li><strong>Install the middleware.</strong><span>Add Wayleave to your existing Express app.</span></li><li><strong>Create a Meter account and issue a key.</strong><span>Keep the key in a server environment variable.</span></li><li><strong>Send a request. Open your ledger.</strong><span>Your existing application keeps handling the response.</span></li></ol><a class="button primary" href="https://meter.wayleave.dev/account.html">Create your account →</a><p class="fine">Signing in does not start a subscription. Hosted Meter terms are below.</p></div>
+<div class="code-panel"><div class="code-top"><span>app.js · existing Express app</span><button data-copy-target="setupCode" type="button">Copy</button></div><pre><code id="setupCode">import Wayleave from 'wayleave';
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="container container--wide hero__grid">
-      <div>
-        <div class="hero__mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          Right-of-way for agent traffic
-        </div>
-        <h1 class="reveal">Get paid when AI <em>agents</em> cross your app.</h1>
-        <p class="hero__lede reveal">A wayleave is the fee utilities have paid for 150 years for the right to run cables across private land. Agents cross your app for free. Charge them.</p>
-        <div class="hero__actions reveal">
-          <div class="code-chip">
-            <span><span class="code-chip__prompt">$</span> npm i wayleave</span>
-            <button type="button" id="copyInstall" aria-label="Copy install command">
-              <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
-              <svg id="checkIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><path d="M5 12l5 5 9-11" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-          </div>
-          <a href="https://meter.wayleave.dev" class="btn btn-primary">Sign in to the meter</a>
-        </div>
-        <div class="hero__meta reveal">
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z"/></svg>Ed25519 signatures</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Sub-millisecond</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>Zero dependencies</span>
-        </div>
-      </div>
+if (!process.env.WAYLEAVE_METER_KEY) {
+  throw new Error('Set WAYLEAVE_METER_KEY');
+}
 
-      <div class="demo reveal" aria-label="Live simulated traffic demo">
-        <div class="demo__bar">
-          <span class="demo__dot"></span><span class="demo__dot"></span><span class="demo__dot"></span>
-          <span class="demo__title">wayleave · lane sorter</span>
-          <span class="demo__live"><span class="demo__live-dot"></span>simulated traffic</span>
-        </div>
-        <div class="demo__body" id="demoBody">
-          <div class="demo__lane" data-lane="verified_agent">
-            <span class="demo__lane-name">verified_agent</span>
-            <div class="demo__track" data-track="verified_agent"></div>
-            <span class="demo__result">✓ paid</span>
-          </div>
-          <div class="demo__lane" data-lane="declared_agent">
-            <span class="demo__lane-name">declared_agent</span>
-            <div class="demo__track" data-track="declared_agent"></div>
-            <span class="demo__result">402</span>
-          </div>
-          <div class="demo__lane" data-lane="suspected_bot">
-            <span class="demo__lane-name">suspected_bot</span>
-            <div class="demo__track" data-track="suspected_bot"></div>
-            <span class="demo__result">402</span>
-          </div>
-          <div class="demo__lane" data-lane="human">
-            <span class="demo__lane-name">human</span>
-            <div class="demo__track" data-track="human"></div>
-            <span class="demo__result">free pass</span>
-          </div>
-        </div>
-        <div class="demo__footer">
-          <span>requests sorted: <span class="demo__counter" id="demoCounter">0</span></span>
-          <span class="demo__footer-note">deterministic simulation, not real traffic</span>
-        </div>
-      </div>
-    </div>
-  </section>
+const gate = new Wayleave({
+  meter: {
+    apiKey: process.env.WAYLEAVE_METER_KEY,
+  },
+});
 
-  <!-- TECH STRIP -->
-  <section class="tech-strip">
-    <div class="container container--wide tech-strip__inner">
-      <span class="tech-strip__label">Built on</span>
-      <span class="tech-chip">Zero dependencies</span>
-      <span class="tech-chip">Ed25519</span>
-      <span class="tech-chip">RFC 9421</span>
-      <span class="tech-chip">Web Bot Auth</span>
-      <span class="tech-chip">Native crypto only</span>
-      <span class="tech-chip">Node / Express</span>
-    </div>
-  </section>
-
-  <!-- MANIFESTO -->
-  <section class="manifesto">
-    <div class="container container--wide manifesto__grid">
-      <blockquote class="reveal">A wayleave is the fee utilities have paid for <span>150 years</span> for the right to run cables across private land.</blockquote>
-      <div class="manifesto__note reveal">
-        <p>Agents cross your app for free today. Every scrape, every RAG pull, every autonomous checkout runs through your infrastructure without paying the toll a human user implicitly pays in attention, ads, or a subscription.</p>
-        <p>Wayleave is the checkpoint at the property line — free middleware that tells you who's crossing, and an optional hosted meter that makes them pay at the door: settled direct to your account before a byte is served.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- THE FREE PART -->
-  <section id="shipping">
-    <div class="container container--wide">
-      <div class="section-head">
-        <div>
-          <div class="eyebrow">Shipping today</div>
-          <h2 class="section-title reveal">The free part — shipping today</h2>
-          <p class="section-lede reveal">Express/Node middleware, zero dependencies, native crypto only. It sorts every request into a lane:</p>
-        </div>
-      </div>
-
-      <div class="lanes-layout">
-        <div class="lane-cards">
-          <div class="lane-card reveal" data-lane="verified_agent">
-            <span class="lane-card__dot"></span>
-            <div>
-              <div class="lane-card__name">verified_agent</div>
-              <div class="lane-card__desc">Valid Ed25519 signature per the Web Bot Auth profile of RFC 9421</div>
-            </div>
-          </div>
-          <div class="lane-card reveal" data-lane="declared_agent">
-            <span class="lane-card__dot"></span>
-            <div>
-              <div class="lane-card__name">declared_agent</div>
-              <div class="lane-card__desc">Says it's a bot, presents no signature</div>
-            </div>
-          </div>
-          <div class="lane-card reveal" data-lane="suspected_bot">
-            <span class="lane-card__dot"></span>
-            <div>
-              <div class="lane-card__name">suspected_bot</div>
-              <div class="lane-card__desc">Automation fingerprints — or a signature that fails verification</div>
-            </div>
-          </div>
-          <div class="lane-card reveal" data-lane="human">
-            <span class="lane-card__dot"></span>
-            <div>
-              <div class="lane-card__name">human</div>
-              <div class="lane-card__desc">Browser-shaped. Never sees a paywall, ever.</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="how-panel reveal">
-          <div class="how-panel__pill">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 18a1.6 1.6 0 0 0 1.4 2.4h16.2a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a1.6 1.6 0 0 0-2.8 0z"/></svg>
-            402 Payment Required
-          </div>
-          <p>On routes you price, non-human lanes get <code>402 Payment Required</code> with an x402-shaped challenge.</p>
-          <div class="install-line">
-            <pre class="codeblock" style="flex:1"><code><span class="c-com">// one line, any Express route</span>
-<span class="c-key">app</span>.<span class="c-fn">use</span>(<span class="c-fn">wayleave</span>({ <span class="c-key">price</span>: <span class="c-str">'$0.001'</span> }));</code></pre>
-          </div>
-          <pre class="codeblock" style="margin-top:1rem"><code><span class="c-key">$</span> <span class="c-fn">npm</span> i wayleave</code></pre>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- THE PAID PART -->
-  <section id="meter" class="meter">
-    <div class="container container--wide">
-      <div class="eyebrow">The hosted meter</div>
-      <h2 class="section-title reveal">The paid part — what gets built next</h2>
-      <p class="section-lede reveal">The middleware emits a usage event for every priced request. The meter keeps those events durably, deduplicates them, and verifies each payment proof as settlement lands direct in your account on a licensed rail — pay-before-entry, not an IOU. That's the hosted meter:</p>
-
-      <div class="lane-cards" style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap: var(--space-4);">
-        <div class="lane-card reveal" data-lane="verified_agent">
-          <span class="lane-card__dot"></span>
-          <div>
-            <div class="lane-card__name">ledger</div>
-            <div class="lane-card__desc">Durable, idempotent record of every billable crossing</div>
-          </div>
-        </div>
-        <div class="lane-card reveal" data-lane="verified_agent">
-          <span class="lane-card__dot"></span>
-          <div>
-            <div class="lane-card__name">identity</div>
-            <div class="lane-card__desc">Usage attributed to a cryptographic agent identity, not an IP guess</div>
-          </div>
-        </div>
-        <div class="lane-card reveal" data-lane="verified_agent">
-          <span class="lane-card__dot"></span>
-          <div>
-            <div class="lane-card__name">settlement</div>
-            <div class="lane-card__desc">Verified at the door, settled direct to your address; invoices only for negotiated enterprise terms</div>
-          </div>
-        </div>
-        <div class="lane-card reveal" data-lane="verified_agent">
-          <span class="lane-card__dot"></span>
-          <div>
-            <div class="lane-card__name">directories</div>
-            <div class="lane-card__desc">Key fetching, caching, and rotation handled for you</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="meter-note reveal">
-        <p><strong>Paid at the door. Never through our hands.</strong> On priced routes, no payment means no passage — money settles on a licensed rail (an x402 facilitator, or one you choose) straight to your account before data moves. Wayleave is the gate and the meter, never the bank: you get verified settlement records, not a middleman holding your funds.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- STATUS -->
-  <section id="status" class="status">
-    <div class="container container--wide">
-      <div class="eyebrow">No hype, just facts</div>
-      <h2 class="section-title reveal">Status, honestly stated</h2>
-
-      <div class="status__grid">
-        <div class="status-card status-card--live reveal">
-          <span class="status-card__tag">Live &amp; real</span>
-          <h3>The middleware is real.</h3>
-          <p>Signature verification is genuine Ed25519 over an RFC 9421 signature base. Forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected, and it's tested adversarially. Sub-millisecond per request.</p>
-        </div>
-        <div class="status-card status-card--live reveal">
-          <span class="status-card__tag">Live &amp; open</span>
-          <h3>The hosted meter is open.</h3>
-          <p>It went live on 2 August. It receives crossings from the middleware, counts each one exactly once no matter how often your app retries, and reports what you are owed per cryptographic identity — with a CSV you can invoice from.</p>
-          <p><strong>You can start today.</strong> Sign in, install the middleware, point it at your key. Signing in does not start a plan — you can run the ledger in observe-only mode for as long as you like and never enter a card.</p>
-          <p><strong>$49/month, flat</strong> after a 3-day trial — priced on metered events, never a cut of what you collect. Taking a percentage of the flow would make this a payment intermediary, which it is deliberately not. The middleware stays free and finished either way.</p>
-        </div>
-      </div>
-
-      <p class="status__closer reveal">No fake urgency and no countdown. Nothing on this page is a promise about the future — it either works today or it isn't listed.</p>
-    </div>
-  </section>
-
-  <!-- START -->
-  <section id="start" class="waitlist">
-    <div class="container container--wide waitlist__grid">
-      <div class="waitlist__copy">
-        <div class="eyebrow">Start counting</div>
-        <h2 class="section-title reveal">See what's already crossing.</h2>
-        <p class="reveal">Install the middleware, point it at a key, and the ledger fills up on its own. Most people find the number larger than they expected — and that number costs nothing to look at. <strong>$49/month after a 3-day trial, only when you choose to start one.</strong></p>
-        <ul class="waitlist__list reveal">
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Signing in doesn't start a plan, and doesn't ask for a card</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Observe-only mode: count every crossing, charge nobody</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5 9-11"/></svg>Ten minutes, four steps, zero dependencies added to your tree</li>
-        </ul>
-        <div class="hero__actions reveal" style="margin-top:var(--space-8)">
-          <a href="https://meter.wayleave.dev" class="btn btn-primary">Sign in to the meter</a>
-          <a href="https://meter.wayleave.dev/docs.html" class="btn btn-ghost"><span>Read the docs</span></a>
-        </div>
-      </div>
-
-      <div class="quickstart reveal">
-        <ol class="quickstart__steps">
-          <li>
-            <h3>Install the middleware</h3>
-            <p>Zero dependencies, Node 18+. It uses Node's own crypto and pulls nothing into your tree.</p>
-            <code class="quickstart__code">npm install wayleave</code>
-          </li>
-          <li>
-            <h3>Issue a key</h3>
-            <p>Account → Issue key. Shown once; only a hash is stored. Give staging its own key so a leak never stops production.</p>
-          </li>
-          <li>
-            <h3>Run in observe-only mode</h3>
-            <p>Price nothing at first. Mount it ahead of your auth layer and watch for a few days — you can't price sensibly until you know what's actually out there.</p>
-            <code class="quickstart__code">app.use(gate.express());</code>
-          </li>
-          <li>
-            <h3>Price the routes worth pricing</h3>
-            <p>Once the ledger shows you where the traffic lands, put a price on those paths. Humans never see a paywall.</p>
-          </li>
-        </ol>
-      </div>
-    </div>
-  </section>
-
-</main>
-
-<footer class="site-footer">
-  <div class="container container--wide site-footer__inner">
-    <div class="site-footer__brand">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>
-      Wayleave — MIT licensed
-    </div>
-    <div class="site-footer__links">
-      <a href="https://github.com/gibrancorbin11-hub/wayleave" target="_blank" rel="noopener noreferrer">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12c0 4.4 2.9 8.1 6.8 9.4.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.7.4-1.1.6-1.4-2.3-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.5-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7 1 .7 2v2.9c0 .3.2.6.7.5A10 10 0 0 0 22 12c0-5.5-4.5-10-10-10z"/></svg>
-        Source on GitHub
-      </a>
-      <a href="https://www.npmjs.com/package/wayleave" target="_blank" rel="noopener noreferrer">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 2h20v20H2V2zm4 16h4v-8h2v8h2v-8h2v8h4V6H6v12z"/></svg>
-        Package on npm
-      </a>
-      <a href="mailto:admin@sendable.me">admin@sendable.me</a>
-      <a href="/privacy.html">Privacy</a>
-      <a href="/terms.html">Terms</a>
-    </div>
-  </div>
-</footer>
-
-<script src="app.js"></script>
-<script data-pplx-inline-edit>
-(function () {
-  if (window === window.top) return;
-
-  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
-  const MAX_FONT_BYTES = 500 * 1024;
-  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
-  let scrollForwarding = false;
-  let scrollRaf = 0;
-  let trustedTopOrigin = null;
-
-  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
-  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
-  // across multiple labels.
-  function matchesAllowedOrigin(origin) {
-    if (!origin) return false;
-    for (const entry of allowedParentOrigins) {
-      if (!entry.includes("*")) {
-        if (entry === origin) return true;
-        continue;
-      }
-      const pattern = new RegExp(
-        "^" +
-          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
-          "$",
-      );
-      if (pattern.test(origin)) return true;
-    }
-    return false;
-  }
-
-  // Trust decision: when the sender is same-origin-visible (event.origin is a
-  // real origin like https://www.perplexity.ai) we trust event.origin directly.
-  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
-  // broker's stamped `parentOrigin` to identify the top window. The fallback
-  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
-  // on the response path (see postToTrustedTop) to ensure replies can't be
-  // delivered to anyone but the actual top window of that claimed origin.
-  function getTrustedParentOrigin(event) {
-    const forwardedParentOrigin =
-      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
-    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
-    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
-  }
-
-  // All responses go to window.top with targetOrigin = the allowlisted origin.
-  // An attacker that iframes us inside their own null-origin broker can claim
-  // any parentOrigin they like, but the browser will drop the reply whenever
-  // the real top's origin doesn't match — so the screenshot never leaves.
-  function postToTrustedTop(message) {
-    if (!trustedTopOrigin) return;
-    try {
-      window.top.postMessage(message, trustedTopOrigin);
-    } catch (_error) {}
-  }
-
-  function inlineAll(original, clone) {
-    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
-
-    try {
-      const computedStyle = getComputedStyle(original);
-      // cssText on a computed style is the serialized declaration in modern
-      // Chromium/Safari — a single read beats enumerating ~400 longhand
-      // properties. Firefox returns "" here, so we fall back on empty.
-      const serialized = computedStyle.cssText;
-      if (serialized) {
-        clone.style.cssText = serialized;
-      } else {
-        const parts = new Array(computedStyle.length);
-        for (let index = 0; index < computedStyle.length; index += 1) {
-          const property = computedStyle[index];
-          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
-        }
-        clone.style.cssText = parts.join("");
-      }
-    } catch (_error) {}
-
-    const originalChildren = original.children;
-    const clonedChildren = clone.children;
-    for (
-      let index = 0;
-      index < originalChildren.length && index < clonedChildren.length;
-      index += 1
-    ) {
-      inlineAll(originalChildren[index], clonedChildren[index]);
-    }
-  }
-
-  function extractFontUrl(srcValue) {
-    const matches = [
-      ...srcValue.matchAll(
-        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
-      ),
-    ];
-    if (matches.length === 0) return null;
-    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
-    if (woff2) return woff2[1];
-    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
-    if (woff) return woff[1];
-    return matches[0][1];
-  }
-
-  // Cache resolved font URL -> data URI across captures. Fonts on a page
-  // essentially never change, and a batch run emits multiple captures back to
-  // back — without this we'd refetch + re-base64 every time.
-  const fontDataUriCache = new Map();
-  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
-
-  async function fetchAsDataUri(url) {
-    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
-    let dataUri = null;
-    try {
-      const response = await fetch(url, { mode: "cors", credentials: "omit" });
-      if (response.ok) {
-        const blob = await response.blob();
-        if (blob.size <= MAX_FONT_BYTES) {
-          dataUri = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () =>
-              resolve(typeof reader.result === "string" ? reader.result : null);
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(blob);
-          });
-        }
-      }
-    } catch (_error) {
-      dataUri = null;
-    }
-    fontDataUriCache.set(url, dataUri);
-    return dataUri;
-  }
-
-  function collectFontFaceRuleTexts() {
-    const rules = [];
-    for (const sheet of document.styleSheets) {
-      let cssRules;
-      try {
-        cssRules = sheet.cssRules;
-      } catch (_error) {
-        continue;
-      }
-      if (!cssRules) continue;
-      for (const rule of cssRules) {
-        const cssText = rule.cssText || "";
-        if (cssText.startsWith("@font-face")) rules.push(cssText);
-      }
-    }
-    return rules;
-  }
-
-  async function buildInlinedFontCss() {
-    const ruleTexts = collectFontFaceRuleTexts();
-    if (ruleTexts.length === 0) return null;
-
-    const resolved = ruleTexts.map((cssText) => {
-      if (!SRC_DECLARATION_RE.test(cssText)) return null;
-      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
-      if (!srcMatch) return null;
-      const url = extractFontUrl(srcMatch[1]);
-      if (!url) return null;
-      try {
-        return { cssText, url: new URL(url, document.baseURI).href };
-      } catch (_error) {
-        return null;
-      }
-    });
-
-    const dataUris = await Promise.all(
-      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
-    );
-
-    const inlined = [];
-    let totalBytes = 0;
-    for (let index = 0; index < resolved.length; index += 1) {
-      const entry = resolved[index];
-      const dataUri = dataUris[index];
-      if (!entry || !dataUri) continue;
-      const approxBytes = dataUri.length * 0.75;
-      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
-      totalBytes += approxBytes;
-      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
-    }
-    return inlined.length > 0 ? inlined.join("\n") : null;
-  }
-
-  function stripExternal(clone) {
-    const images = clone.querySelectorAll("img");
-    for (let index = 0; index < images.length; index += 1) {
-      const src = images[index].getAttribute("src");
-      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
-    }
-
-    const elements = clone.querySelectorAll("*");
-    for (let index = 0; index < elements.length; index += 1) {
-      const style = elements[index].style.cssText;
-      if (style && style.includes("url(")) {
-        elements[index].style.cssText = style.replace(
-          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
-          "none",
-        );
-      }
-    }
-  }
-
-  function emitScroll() {
-    scrollRaf = 0;
-    if (!scrollForwarding) return;
-    postToTrustedTop({
-      type: "INLINE_EDIT_SCROLL",
-      scrollX: window.scrollX,
-      scrollY: window.scrollY,
-    });
-  }
-
-  window.addEventListener(
-    "scroll",
-    function () {
-      if (!scrollForwarding || scrollRaf) return;
-      scrollRaf = requestAnimationFrame(emitScroll);
-    },
-    { passive: true, capture: true },
-  );
-
-  async function handleCaptureRequest(event) {
-    const requestId = event.data.requestId;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    function postResult(dataUrl) {
-      postToTrustedTop({
-        type: "INLINE_EDIT_SCREENSHOT_RESULT",
-        requestId,
-        dataUrl,
-        scrollX,
-        scrollY,
-      });
-    }
-
-    try {
-      // Wait for any pending web fonts to resolve so both inline metrics and
-      // the @font-face inlining below see the same loaded faces.
-      if (document.fonts && document.fonts.ready) {
-        try {
-          await document.fonts.ready;
-        } catch (_error) {}
-      }
-
-      const clone = document.documentElement.cloneNode(true);
-      inlineAll(document.documentElement, clone);
-
-      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
-      for (let index = 0; index < removedNodes.length; index += 1) {
-        removedNodes[index].remove();
-      }
-
-      stripExternal(clone);
-
-      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
-      // can resolve them — external font URLs aren't fetched during
-      // foreignObject rendering, which would otherwise force a fallback face
-      // and change text metrics.
-      const inlinedFontCss = await buildInlinedFontCss();
-      if (inlinedFontCss) {
-        const styleEl = document.createElement("style");
-        styleEl.textContent = inlinedFontCss;
-        const head = clone.querySelector("head");
-        if (head) head.appendChild(styleEl);
-        else clone.insertBefore(styleEl, clone.firstChild);
-      }
-
-      const html = new XMLSerializer().serializeToString(clone);
-      const svg =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
-        '<foreignObject width="100%" height="100%">' +
-        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
-        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
-        html +
-        "</div></div></foreignObject></svg>";
-      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-      const image = new Image();
-      image.onload = function () {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(image, 0, 0);
-        postResult(canvas.toDataURL("image/png"));
-      };
-      image.onerror = function () {
-        postResult(null);
-      };
-      image.src = svgUrl;
-    } catch (_error) {
-      postResult(null);
-    }
-  }
-
-  window.addEventListener("message", function (event) {
-    if (!event.data) return;
-    // Only accept messages from the direct parent frame. Blocks sibling /
-    // unrelated-window postMessage senders that could otherwise reach us.
-    if (event.source !== window.parent) return;
-
-    const trustedParentOrigin = getTrustedParentOrigin(event);
-    if (!trustedParentOrigin) return;
-    trustedTopOrigin = trustedParentOrigin;
-
-    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
-      scrollForwarding = true;
-      emitScroll();
-      return;
-    }
-
-    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
-      scrollForwarding = false;
-      if (scrollRaf) cancelAnimationFrame(scrollRaf);
-      scrollRaf = 0;
-      return;
-    }
-
-    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
-
-    handleCaptureRequest(event);
-  });
-})();
-
-
-</script></body>
-</html>
+// Mount before the routes you want to observe.
+app.use(gate.express());</code></pre><p>No prices, blocking rules or rate limits configured. Add them when you’re ready.</p></div></section>
+<section class="wrap pricing" id="pricing"><div class="section-heading"><p class="eyebrow">STRAIGHTFORWARD PRICING</p><h2>A free gate.<br>A hosted ledger when you need it.</h2></div><div class="price-grid"><article><span class="step">WAYLEAVE GATE</span><h3>$0 <small>/ MIT licensed</small></h3><p>Request classification, signature verification, route policies and metering hooks in your application.</p><a class="button" href="https://www.npmjs.com/package/wayleave">Get the npm package ↗</a></article><article class="meter-price"><span class="step">WAYLEAVE METER</span><h3>$49 <small>/ month</small></h3><p>A hosted ledger for traffic and confirmed settlement records, with CSV export and separate API keys.</p><a class="button primary" href="https://meter.wayleave.dev/account.html">Open the Meter →</a><p class="fine">Optional 3-day trial requires a card. $49/month afterward unless canceled. Signing in alone does not start billing.</p></article></div></section>
+<section class="wrap limits"><h2>Clear signals.<br>Honest boundaries.</h2><div><p>Cryptographic verification checks a signature against keys you trust. Self-declared and suspected traffic are classifications, not proof of an operator’s identity.</p><p>Browser-shaped traffic can include bots. For priced resources, use strict policies and your own trusted human check. Supported payments require a configured verifier; bank payouts are not available.</p><a href="https://github.com/gibrancorbin11-hub/wayleave#security-posture">Read the security model ↗</a></div></section>
+<section class="wrap closing"><p class="eyebrow">OBSERVE → CONTROL → MONETIZE</p><h2>Your app.<br><span>Your rules.</span></h2><a class="button primary" href="#setup">Start observing →</a></section>
+</main><footer class="wrap footer"><a class="brand" href="/"><svg viewBox="0 0 48 40" aria-hidden="true"><path d="M3 35 23 3h12L15 35Z" fill="currentColor"/><circle cx="37" cy="30" r="6" fill="currentColor"/></svg><span>WAYLEAVE</span></a><nav aria-label="Footer"><a href="https://github.com/gibrancorbin11-hub/wayleave">GitHub</a><a href="https://meter.wayleave.dev/docs.html">Docs</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="mailto:admin@sendable.me">Contact</a></nav></footer>
+<p id="copyStatus" class="copy-status" role="status" aria-live="polite"></p><script src="home.js" defer></script></body></html>

@@ -4,9 +4,9 @@
 [![npm](https://img.shields.io/npm/v/wayleave.svg)](https://www.npmjs.com/package/wayleave)
 [![install size](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/wayleave)
 
-**Charge AI agents for passage across your app.**
+**Observe agent traffic. Control access. Charge payment-ready agents.**
 
-A *wayleave* is the fee paid for the right of passage across private land — utility companies have paid them for 150 years to run cables through property. AI agents are about to cross your app millions of times for free. Charge them a wayleave.
+Wayleave is open-source middleware for request classification, signed-agent verification, route-level policies and pricing. The [hosted Meter](https://meter.wayleave.dev) records traffic and settlement activity.
 
 Zero dependencies. Node's native crypto only. TypeScript declarations included.
 
@@ -14,7 +14,7 @@ Zero dependencies. Node's native crypto only. TypeScript declarations included.
 
 Every request gets classified into a lane:
 
-- **verified_agent** — valid Ed25519 signature (Web Bot Auth profile, RFC 9421) against a key directory you trust
+- **verified_agent** — valid Ed25519 HTTP Message Signature (RFC 9421, compatible with emerging Web Bot Auth) against a key directory you trust
 - **declared_agent** — identifies as a bot, no valid signature
 - **suspected_bot** — automation fingerprints without disclosure (an *invalid* signature lands here too — faking verification is the strongest fraud signal there is)
 - **human** — browser-shaped traffic, which means *nothing gave it away*, not that a person is there
@@ -23,7 +23,40 @@ Then policy runs per lane: allow, deny, rate-limit — and on routes you price, 
 
 Only the first lane is cryptographic. The other three are read off what the client says about itself, so a bot willing to lie reaches the human lane — see [Guarantees](#guarantees-honestly-stated), and set `strictPricedPaths` on anything you charge for.
 
-## Quickstart
+## Quickstart: observe first
+
+```sh
+npm install wayleave
+```
+
+[Create a Meter account](https://meter.wayleave.dev/account.html), issue an API key,
+and set `WAYLEAVE_METER_KEY` in your server environment. Signing in does not
+start billing. The optional hosted Meter trial requires a card and becomes
+$49/month after 3 days unless canceled; see your account for current terms.
+
+In your existing Express app:
+
+```js
+import Wayleave from 'wayleave';
+
+if (!process.env.WAYLEAVE_METER_KEY) {
+  throw new Error('Set WAYLEAVE_METER_KEY before starting the app');
+}
+const gate = new Wayleave({
+  meter: { apiKey: process.env.WAYLEAVE_METER_KEY },
+});
+app.use(gate.express()); // before the routes you want to observe
+```
+
+Send a request to your app, allow the buffer to flush, then open the
+[Meter dashboard](https://meter.wayleave.dev/app.html). No pricing, blocking,
+or rate limits are configured in this example. Drain `gate.sink.close()`
+during your application's graceful shutdown. Keep the key server-side.
+
+The middleware also works without an account: omit `meter` and use `onEvent`
+to send events to your own backend. See [integration docs](https://meter.wayleave.dev/docs.html).
+
+## Add access rules and payments
 
 ```js
 import Wayleave from 'wayleave';
@@ -59,7 +92,7 @@ rather than quietly denying every payment.
 
 - Signature verification is real Ed25519 over an RFC 9421 signature base — forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected. Tested adversarially, and against other implementations' wire formats rather than only its own.
 - Signature parameters are parsed as an RFC 9421 dictionary: order-independent, `alg` enforced as Ed25519, any signature label, and the signature base is built from whatever components the signer declared. Requests signed in Cloudflare's documented format verify.
-- Sub-millisecond per request. Your latency budget won't notice.
+- Local verification is benchmarked by the tests; latency depends on your hardware and configuration. Payment-provider network calls add latency.
 - The metering hook can throw, crash, or hang your billing backend — serving continues. Your uptime never depends on ours.
 - Key rotation has a seam but no implementation. `directories` accepts a resolver function you can point at a cache, but there is no JWKS fetcher in the box and the resolver must not block. Wiring that cache is still your job.
 - **A bot that sends a browser `user-agent` and an `accept-language` header is classified `human` and crosses priced routes free.** Those two headers are the entire bypass. The `human` lane is a fall-through — it is reached by tripping none of the automation tells, which is absence of evidence, not evidence of a person. There is no TLS fingerprinting and no challenge here; that work belongs at your edge or CDN, and pretending otherwise would be the dishonest version of this list. (`verifyAgentIP` checks a *declared* operator against its published ranges — it does nothing about a request claiming to be a browser, which is this bypass.) `strictPricedPaths: true` inverts the burden on priced routes so that only a verified signature or your own `confirmHuman(req)` crosses. Recommended wherever there is a price.
@@ -85,8 +118,8 @@ Pay-at-the-door, not IOUs. On a route you price:
 2. A wallet-carrying agent signs payment and retries with proof attached.
 3. The proof is verified and settlement executes on a licensed rail
    (x402 facilitator) — money moves to your account.
-4. Only then: `200`. No settled payment, no passage. Data never moves
-   on a promise.
+4. Access can be released after payment verification. Your verifier must
+   check the payment with the configured provider before returning success.
 
 Agents without wallets (most crawlers today) are simply turned away on
 priced routes — you aren't paid by them, but you also never serve them
@@ -94,9 +127,9 @@ free. The ledger shows exactly how much turned-away demand is standing
 at your gate.
 
 Wayleave never holds funds. Agent money flows agent → facilitator → you.
-The hosted meter (not built yet — see the waitlist) is what wires this
-end-to-end; today the 402 challenge is built in and step 3 is a function
-you supply.
+The [hosted Meter](https://meter.wayleave.dev) records crossings and confirmed
+settlement activity. The 402 challenge is built in; payment verification is
+a function you configure. A Meter account does not configure a payment rail.
 
 **Step 3 is yours, and it defaults to no.** `verifyPayment(proof, ctx)` is
 the only thing that can turn a 402 into a 200. Configure nothing and every

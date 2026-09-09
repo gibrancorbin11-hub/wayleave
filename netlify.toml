@@ -10,10 +10,13 @@
 # is the second layer. Its real teeth are connect-src and form-action: an
 # injected script can't POST a signup list anywhere but back to this origin.
 #
-# Everything is self-hosted on purpose — fonts included — so no external host
-# appears below. ADD ONE AND THE CSP WILL BLOCK IT until it's listed here;
-# that's the point, but it also means a feature that breaks right after you
-# add a fetch() or a CDN link is usually this file, not your code.
+# Everything is self-hosted on purpose — fonts included — with exactly one
+# exception: the Command Center pixel. It is named twice below, in script-src
+# (to load px.js) and in img-src (the beacon is `new Image().src`, not fetch,
+# so connect-src would not have helped and is deliberately still 'self').
+# ADD ANOTHER HOST AND THE CSP WILL BLOCK IT until it's listed here; that's
+# the point, but it also means a feature that breaks right after you add a
+# fetch() or a CDN link is usually this file, not your code.
 #
 # style-src keeps 'unsafe-inline' because the markup uses inline style=""
 # attributes; script-src deliberately does NOT — app.js is a real file, and
@@ -27,4 +30,4 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://command-center-production-b33a.up.railway.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://command-center-production-b33a.up.railway.app; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
