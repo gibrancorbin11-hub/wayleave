@@ -17,18 +17,24 @@
     "./x402": {
       "types": "./x402.d.ts",
       "default": "./x402.js"
+    },
+    "./policy": {
+      "types": "./policy.d.ts",
+      "default": "./policy.js"
     }
   },
   "files": [
     "LICENSE",
     "README.md",
+    "cdp-auth.js",
     "index.d.ts",
     "index.js",
     "meter.d.ts",
     "meter.js",
+    "policy.d.ts",
+    "policy.js",
     "x402.d.ts",
-    "x402.js",
-    "cdp-auth.js"
+    "x402.js"
   ],
   "scripts": {
     "test": "node --test *.test.js"

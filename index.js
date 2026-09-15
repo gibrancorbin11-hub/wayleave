@@ -22,6 +22,7 @@ import { createPublicKey, verify as edVerify, sign as edSign,
 // Same package, zero dependencies, ~9KB. Importing it unconditionally costs
 // nothing measurable and makes `meter: { apiKey }` work without ceremony.
 import { MeterSink } from './meter.js';
+import { RemotePolicy } from './policy.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -466,6 +467,22 @@ export class Wayleave {
     // Identifies events from this process so a retrying sink can dedup. A
     // counter alone would collide across instances; a timestamp alone would
     // collide within a millisecond.
+    // What the developer configured here is the floor and never moves. A
+    // policy fetched from the meter is layered ON TOP, so if our service is
+    // unreachable -- or returns nothing at all -- the gate still enforces
+    // exactly what this constructor was given.
+    this._localRules = this.rules;
+    this._localRateLimits = this.rateLimits;
+    this._localPricedPaths = this.pricedPaths;
+
+    this.policy = opts.policy
+      ? new RemotePolicy({
+          ...opts.policy,
+          onEvent: this.onEvent,
+          onChange: compiled => this._applyPolicy(compiled),
+        })
+      : null;
+
     this._instance = randomUUID();
     this._seq = 0;
   }
@@ -662,6 +679,34 @@ export class Wayleave {
   }
 
   /** Express/Connect adapter: app.use(wayleave.express()) */
+  /**
+   * Start polling for a remote policy. Awaiting this is optional: skip it and
+   * the gate enforces its local configuration until the first refresh lands.
+   * It never rejects, because a gate that will not boot when our service is
+   * down is worse than one that enforces nothing.
+   */
+  async ready() {
+    if (this.policy) await this.policy.start();
+    return this;
+  }
+
+  /** Stop polling. Safe to call when no remote policy is configured. */
+  close() { this.policy?.stop(); }
+
+  /**
+   * Remote first, local second. `_preDecide` takes the first matching prefix,
+   * so a rule the customer set in the dashboard wins over a default compiled
+   * into their app -- which is the whole point of setting it there.
+   */
+  _applyPolicy({ rules, rateLimits, pricedPaths }) {
+    const merged = {};
+    for (const lane of new Set([...Object.keys(rules), ...Object.keys(this._localRules)]))
+      merged[lane] = [...(rules[lane] || []), ...(this._localRules[lane] || [])];
+    this.rules = merged;
+    this.rateLimits = { ...this._localRateLimits, ...rateLimits };
+    this.pricedPaths = { ...this._localPricedPaths, ...pricedPaths };
+  }
+
   express() {
     return async (req, res, next) => {
       const r = await this.handleAsync({
