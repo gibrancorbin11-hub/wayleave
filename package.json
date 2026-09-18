@@ -1,7 +1,7 @@
 {
   "name": "wayleave",
   "version": "0.4.1",
-  "description": "Charge AI agents for passage across your app. Verify agent signatures (Web Bot Auth / Ed25519), classify every request, and return 402 with a price on routes you choose. Humans browse free.",
+  "description": "Know which AI agents cross your API \u2014 verified by signature, not guessed from an IP. Sorts every request into four lanes, prices the non-human ones with HTTP 402, and never charges a human. Zero dependencies.",
   "type": "module",
   "main": "index.js",
   "types": "./index.d.ts",
@@ -24,6 +24,9 @@
     },
     "./registry": {
       "default": "./registry.js"
+    },
+    "./manifest": {
+      "default": "./manifest.js"
     }
   },
   "files": [
@@ -32,6 +35,7 @@
     "cdp-auth.js",
     "index.d.ts",
     "index.js",
+    "manifest.js",
     "meter.d.ts",
     "meter.js",
     "policy-engine.js",
@@ -49,16 +53,26 @@
   },
   "keywords": [
     "ai-agents",
+    "agent-identity",
+    "agent-traffic",
+    "bot-detection",
     "web-bot-auth",
     "rfc9421",
+    "http-message-signatures",
+    "ed25519",
     "402",
+    "http-402",
     "x402",
     "agent-payments",
-    "bot-detection",
+    "micropayments",
     "middleware",
     "express",
+    "connect",
+    "api-monetization",
     "monetization",
-    "ed25519"
+    "rate-limiting",
+    "access-control",
+    "zero-dependencies"
   ],
   "license": "MIT",
   "author": "Gibran Corbin (https://github.com/gibrancorbin11-hub)",

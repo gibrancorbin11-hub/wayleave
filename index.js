@@ -25,6 +25,7 @@ import { MeterSink } from './meter.js';
 import { RemotePolicy } from './policy.js';
 import { evaluatePolicy } from './policy-engine.js';
 import { Registry } from './registry.js';
+import { ManifestServer, MANIFEST_PATHS, originFor } from './manifest.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -432,6 +433,16 @@ export class Wayleave {
     this.rateLimits = opts.rateLimits || {};
     this.rateWindow = opts.rateWindow || 60;
     this.pricedPaths = opts.pricedPaths || {};
+
+    // Discovery. Default on when there is something to discover, because a
+    // priced route nothing can find earns nothing.
+    this.publicOrigin = opts.publicOrigin || null;
+    this.manifestEnabled = opts.manifest !== false && Object.keys(this.pricedPaths).length > 0;
+    this.manifests = this.manifestEnabled
+      ? new ManifestServer({ pricedPaths: this.pricedPaths, payment: opts.payment || {},
+                             name: opts.name, description: opts.description,
+                             docs: opts.docs, contact: opts.contact })
+      : null;
     this.onEvent = opts.onEvent || (() => {});
 
     // No payment verifier configured means no agent can ever buy passage.
@@ -530,6 +541,20 @@ export class Wayleave {
    * Identical in every respect except that it can await your verifyPayment.
    * Use this whenever you actually sell something; the Express adapter does.
    */
+  /**
+   * The discovery document, if this request is asking for it.
+   *
+   * Checked before classification so it is never metered, never rate-limited
+   * and never priced. A paywalled discovery document cannot be discovered.
+   */
+  manifestFor(req) {
+    if (!this.manifests || !MANIFEST_PATHS.includes(req.path)) return null;
+    const origin = originFor(req, this.publicOrigin);
+    if (!origin) return null;
+    const body = this.manifests.forOrigin(origin);
+    return body ? { status: 200, body, headers: { 'content-type': 'application/json' } } : null;
+  }
+
   async handleAsync(req, now = Math.floor(Date.now() / 1000), paymentProof = '') {
     const c = classify(req, this.directories, now,
                        { verifyAgentIP: this.verifyAgentIP, ip: this._client(req) });

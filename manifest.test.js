@@ -1,0 +1,137 @@
+/**
+ * E-1 discovery manifest.
+ *
+ * The field names here were read from draft-hawkins-x402-dns-discovery-01 and
+ * specs/x402-specification-v1.md. The tests assert the two traps that make an
+ * index silently skip an endpoint: `asset` must be a contract address rather
+ * than a symbol, and `maxTimeoutSeconds` is required.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { buildManifest, originFor, MANIFEST_PATHS, ManifestServer } from './manifest.js';
+import Wayleave from './index.js';
+
+const PAY_TO = '0x1F930B6A9F68c91aB23db07a9c4A5Dc166eF8011';
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const CONFIG = {
+  pricedPaths: { '/api/premium': 0.05, '/api/search': 0.001 },
+  payment: { payTo: PAY_TO, network: 'base' },
+  origin: 'https://example.com',
+};
+
+test('the manifest is the configuration, field for field', () => {
+  const m = buildManifest(CONFIG);
+  assert.equal(m.x402Version, 1);          // what we speak, not what the draft's example shows
+  assert.equal(m.kind, 'resource-server'); // we are not a facilitator
+  assert.deepEqual(m.attestation, { type: 'none' });
+  assert.equal(m.resources.length, 2);
+  assert.ok(Date.parse(m.updated));
+
+  const premium = m.resources.find(r => r.url.endsWith('/api/premium'));
+  assert.equal(premium.url, 'https://example.com/api/premium');   // absolute, or an index cannot use it
+  const a = premium.accepts[0];
+  assert.equal(a.scheme, 'exact');
+  assert.equal(a.network, 'base');
+  assert.equal(a.asset, BASE_USDC, 'asset is a contract address, never a symbol');
+  assert.equal(a.payTo, PAY_TO);
+  assert.equal(a.resource, premium.url);
+  assert.equal(a.maxTimeoutSeconds, 60, 'required by the v1 spec');
+  assert.ok(a.description && a.mimeType);
+});
+
+test('prices convert to atomic units without a float anywhere near them', () => {
+  const m = buildManifest(CONFIG);
+  const by = p => m.resources.find(r => r.url.endsWith(p)).accepts[0].maxAmountRequired;
+  assert.equal(by('/api/premium'), '50000');   // 0.05 USD, 6 decimals
+  assert.equal(by('/api/search'), '1000');     // 0.001 USD
+  assert.equal(typeof by('/api/premium'), 'string', 'atomic units are strings in the spec');
+
+  // The price that actually drifts at this scale.
+  const drifty = buildManifest({ ...CONFIG, pricedPaths: { '/x': 2.01 } });
+  assert.equal(drifty.resources[0].accepts[0].maxAmountRequired, '2010000');
+});
+
+test('a symbol where an address belongs publishes no price rather than a wrong one', () => {
+  // The brief's own example said asset: 'usdc-base'. That is not a contract
+  // address, and an index reading it would skip or mis-price the endpoint.
+  const m = buildManifest({ ...CONFIG, payment: { payTo: PAY_TO, network: 'base', asset: 'usdc-base' } });
+  // Falls back to the verified contract for the network rather than echoing it.
+  assert.equal(m.resources[0].accepts[0].asset, BASE_USDC);
+
+  // An unknown network with no address: the resource is still advertised, but
+  // without an accepts block, because a wrong address is worse than none.
+  const unknown = buildManifest({ ...CONFIG, payment: { payTo: PAY_TO, network: 'solana-mainnet' } });
+  assert.equal(unknown.resources[0].accepts, undefined);
+  assert.ok(unknown.resources[0].url);
+
+  const noPayee = buildManifest({ ...CONFIG, payment: { network: 'base' } });
+  assert.equal(noPayee.resources[0].accepts, undefined);
+});
+
+test('nothing to sell means no manifest, because an empty one is a false claim', () => {
+  assert.equal(buildManifest({ ...CONFIG, pricedPaths: {} }), null);
+  assert.equal(buildManifest({ ...CONFIG, origin: null }), null);
+});
+
+test('the canonical path is extensionless, and the alias is answered too', () => {
+  // Tooling fetches /.well-known/x402. A document served only at .json is a
+  // document nobody fetches.
+  assert.equal(MANIFEST_PATHS[0], '/.well-known/x402');
+  assert.ok(MANIFEST_PATHS.includes('/.well-known/x402.json'));
+});
+
+test('origin comes from the request unless the app configured one', () => {
+  const req = h => ({ headers: h });
+  assert.equal(originFor(req({ host: 'api.example.com' })), 'https://api.example.com');
+  assert.equal(originFor(req({ host: 'internal', 'x-forwarded-host': 'api.example.com',
+                               'x-forwarded-proto': 'https' })), 'https://api.example.com');
+  assert.equal(originFor(req({ host: 'anything' }), 'https://configured.example'), 'https://configured.example');
+  assert.equal(originFor(req({})), null);
+});
+
+test('the document is computed once per origin and then held', () => {
+  let built = 0;
+  const server = new ManifestServer({ ...CONFIG, origin: undefined,
+    now: () => { built++; return new Date(); } });
+  server.forOrigin('https://a.example');
+  server.forOrigin('https://a.example');
+  server.forOrigin('https://a.example');
+  assert.equal(built, 1, 'one build for three serves');
+  server.forOrigin('https://b.example');
+  assert.equal(built, 2, 'a different host is a different document');
+});
+
+test('the gate serves it, and never charges for it', async () => {
+  const gate = new Wayleave({
+    pricedPaths: { '/api/premium': 0.05 },
+    payment: { payTo: PAY_TO, network: 'base' },
+    publicOrigin: 'https://example.com',
+  });
+  for (const path of MANIFEST_PATHS) {
+    const r = gate.manifestFor({ path, headers: {} });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers['content-type'], 'application/json');
+    assert.equal(r.body.resources[0].accepts[0].maxAmountRequired, '50000');
+    // Valid JSON by the only test that matters: it round-trips.
+    assert.deepEqual(JSON.parse(JSON.stringify(r.body)), r.body);
+  }
+  // A priced route is still priced; the manifest did not open a hole.
+  const paid = await gate.handleAsync({ method: 'GET', path: '/api/premium', ip: '203.0.113.2',
+                                        headers: { 'user-agent': 'python-requests/2.31' } });
+  assert.equal(paid.status, 402);
+  gate.close();
+});
+
+test('no priced routes, or manifest:false, means 404 rather than an empty document', () => {
+  const none = new Wayleave({ publicOrigin: 'https://example.com' });
+  assert.equal(none.manifestFor({ path: '/.well-known/x402', headers: {} }), null);
+
+  const off = new Wayleave({ pricedPaths: { '/api/x': 0.01 }, manifest: false,
+                             payment: { payTo: PAY_TO }, publicOrigin: 'https://example.com' });
+  assert.equal(off.manifestFor({ path: '/.well-known/x402', headers: {} }), null);
+
+  const on = new Wayleave({ pricedPaths: { '/api/x': 0.01 },
+                            payment: { payTo: PAY_TO }, publicOrigin: 'https://example.com' });
+  assert.equal(on.manifestFor({ path: '/other', headers: {} }), null);
+  assert.equal(on.manifestFor({ path: '/.well-known/x402', headers: {} }).status, 200);
+});
