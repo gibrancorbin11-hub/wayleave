@@ -21,6 +21,9 @@
     "./policy": {
       "types": "./policy.d.ts",
       "default": "./policy.js"
+    },
+    "./registry": {
+      "default": "./registry.js"
     }
   },
   "files": [
@@ -34,6 +37,7 @@
     "policy-engine.js",
     "policy.d.ts",
     "policy.js",
+    "registry.js",
     "x402.d.ts",
     "x402.js"
   ],

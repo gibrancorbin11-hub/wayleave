@@ -24,6 +24,7 @@ import { createPublicKey, verify as edVerify, sign as edSign,
 import { MeterSink } from './meter.js';
 import { RemotePolicy } from './policy.js';
 import { evaluatePolicy } from './policy-engine.js';
+import { Registry } from './registry.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -413,7 +414,20 @@ export class Wayleave {
    * }
    */
   constructor(opts = {}) {
-    this.directories = opts.directories || {};
+    // `directories: 'wayleave:default'` resolves to the signed public registry.
+    // The verification path below does not change: asResolver() already accepts
+    // a function, and this supplies one backed by a document fetched on a timer
+    // and resolved from memory.
+    if (opts.directories === 'wayleave:default' || opts.registry) {
+      this.registry = new Registry({
+        onEvent: opts.onEvent,
+        ...(typeof opts.registry === 'object' ? opts.registry : {}),
+      });
+      this.directories = this.registry.resolver();
+    } else {
+      this.registry = null;
+      this.directories = opts.directories || {};
+    }
     this.rules = opts.rules || {};
     this.rateLimits = opts.rateLimits || {};
     this.rateWindow = opts.rateWindow || 60;
@@ -690,12 +704,15 @@ export class Wayleave {
    * down is worse than one that enforces nothing.
    */
   async ready() {
+    // Neither rejects. A gate that will not boot because our service is down
+    // is worse than one that enforces nothing.
+    if (this.registry) await this.registry.start();
     if (this.policy) await this.policy.start();
     return this;
   }
 
   /** Stop polling. Safe to call when no remote policy is configured. */
-  close() { this.policy?.stop(); }
+  close() { this.policy?.stop(); this.registry?.stop(); }
 
   /**
    * Evaluate the fetched policy for one request.
