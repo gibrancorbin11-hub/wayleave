@@ -23,6 +23,7 @@ import { createPublicKey, verify as edVerify, sign as edSign,
 // nothing measurable and makes `meter: { apiKey }` work without ceremony.
 import { MeterSink } from './meter.js';
 import { RemotePolicy } from './policy.js';
+import { evaluatePolicy } from './policy-engine.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -475,6 +476,7 @@ export class Wayleave {
     this._localRateLimits = this.rateLimits;
     this._localPricedPaths = this.pricedPaths;
 
+    this.quotaStore = opts.quotaStore || null;
     this.policy = opts.policy
       ? new RemotePolicy({
           ...opts.policy,
@@ -503,6 +505,7 @@ export class Wayleave {
                     status: d.status, why: d.why, evidence,
                     billedUsd: d.billed || 0 };
     if (d.paymentRef) entry.paymentRef = d.paymentRef;
+    if (d.ruleId) entry.ruleId = d.ruleId;
     this.sink.emit(entry);
     return { lane, identity: ident, ...d, evidence };
   }
@@ -519,7 +522,8 @@ export class Wayleave {
     const { lane, agentId, evidence } = c;
     const ident = agentId || `${lane}:${this._client(req)}`;
     const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
-    const d = await this._decideAsync(req, lane, ident, now, proof, c);
+    const fromPolicy = await this._policyDecision(req, lane, ident, c);
+    const d = fromPolicy || await this._decideAsync(req, lane, ident, now, proof, c);
     const entry = { v: 1, idempotencyKey: `${this._instance}:${this._seq++}`,
                     t: now, path: req.path, lane, identity: ident,
                     status: d.status, why: d.why, evidence,
@@ -694,18 +698,52 @@ export class Wayleave {
   close() { this.policy?.stop(); }
 
   /**
-   * Remote first, local second. `_preDecide` takes the first matching prefix,
-   * so a rule the customer set in the dashboard wins over a default compiled
-   * into their app -- which is the whole point of setting it there.
+   * Evaluate the fetched policy for one request.
+   *
+   * The context is built from the gate's OWN verification result. Nothing here
+   * comes from a header or body the caller controls: the engine only honours
+   * subject and operator selectors when identity.verified is true, and passing
+   * a caller's claims through would defeat exactly that check.
+   *
+   * Returns null when there is no policy, or when it says allow -- in both
+   * cases the gate's local configuration decides, as it always did.
    */
-  _applyPolicy({ rules, rateLimits, pricedPaths }) {
-    const merged = {};
-    for (const lane of new Set([...Object.keys(rules), ...Object.keys(this._localRules)]))
-      merged[lane] = [...(rules[lane] || []), ...(this._localRules[lane] || [])];
-    this.rules = merged;
-    this.rateLimits = { ...this._localRateLimits, ...rateLimits };
-    this.pricedPaths = { ...this._localPricedPaths, ...pricedPaths };
+  async _policyDecision(req, lane, ident, c) {
+    const policy = this.policy?.document;
+    if (!policy) return null;
+    const identity = c?.agentId && c.lane === 'verified_agent'
+      ? { verified: true, subject: c.agentId, operator: c.operator || undefined }
+      : { verified: false };
+    let d;
+    try {
+      d = await evaluatePolicy(policy, {
+        tenant: this.policy.tenant || 'self',
+        path: req.path, method: req.method, lane,
+        identity, anonymousBucket: ident,
+      }, { quotaStore: this.quotaStore });
+    } catch (err) {
+      // A policy we cannot evaluate must not break the request. Traffic fails open.
+      this.onEvent({ type: 'policy.evaluate.failed', error: err?.message });
+      return null;
+    }
+    if (d.action === 'allow') return null;
+    if (d.action === 'deny')
+      return { status: 403, why: d.reason || `denied by rule ${d.ruleId || 'default'}`,
+               ruleId: d.ruleId, headers: { 'x-wayleave-rule': String(d.ruleId || 'default') },
+               ...(d.reason === 'Quota exceeded'
+                    ? { status: 429, headers: { 'x-wayleave-rule': String(d.ruleId),
+                                                'retry-after': String(this.rateWindow) } }
+                    : {}) };
+    if (d.action === 'pay')
+      return { status: 402, why: `payment required by rule ${d.ruleId}`, ruleId: d.ruleId,
+               headers: { 'x-wayleave-rule': String(d.ruleId) },
+               challenge: { scheme: d.rail || 'x402', price_usd: d.priceMicros / 1e6,
+                            resource: req.path } };
+    return null;
   }
+
+  /** Local configuration, untouched by any fetched policy. */
+  _applyPolicy() { /* policy is evaluated per request; nothing to compile */ }
 
   express() {
     return async (req, res, next) => {

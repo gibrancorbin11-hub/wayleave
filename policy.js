@@ -19,11 +19,47 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { verify as edVerify, createPublicKey } from 'node:crypto';
 
 const DEFAULT_ENDPOINT = 'https://meter.wayleave.dev';
 const DEFAULT_REFRESH_MS = 5 * 60_000;
 const FETCH_TIMEOUT_MS = 5_000;
 const LANES = ['verified_agent', 'declared_agent', 'suspected_bot', 'human'];
+
+/** Deterministic JSON. Must match the meter's canonical() exactly, or every
+ *  signature verifies where it was made and nowhere else. */
+export function canonical(value) {
+  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort()
+      .filter(k => value[k] !== undefined)
+      .map(k => JSON.stringify(k) + ':' + canonical(value[k]))
+      .join(',') + '}';
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+/**
+ * Verify the signed envelope. Returns rather than throws: a gate's only
+ * correct response to a bad document is to keep serving from its last good
+ * copy, never to fail a request.
+ */
+export function verifyEnvelope(envelope, publicKey, { now = Date.now(), graceMs = 0 } = {}) {
+  if (!envelope || typeof envelope !== 'object') return { ok: false, reason: 'not an object' };
+  if (envelope.v !== 1) return { ok: false, reason: 'unsupported envelope version' };
+  if (typeof envelope.sig !== 'string' || !envelope.sig) return { ok: false, reason: 'missing signature' };
+  const { sig, ...body } = envelope;
+  try {
+    const key = typeof publicKey === 'string' ? createPublicKey(publicKey) : publicKey;
+    if (!edVerify(null, Buffer.from(canonical(body), 'utf8'), key, Buffer.from(sig, 'base64')))
+      return { ok: false, reason: 'signature does not match' };
+  } catch (err) { return { ok: false, reason: 'signature check failed: ' + err.message }; }
+  // After the signature, so a forged expiry cannot decide whether we check it.
+  const expires = Date.parse(envelope.expires);
+  if (!Number.isFinite(expires)) return { ok: false, reason: 'unreadable expiry' };
+  if (now > expires + graceMs) return { ok: false, reason: 'expired past grace' };
+  return { ok: true, policy: envelope.policy };
+}
 
 /**
  * The meter's policy document, translated into the shapes the gate already
@@ -77,11 +113,14 @@ export class RemotePolicy {
    * @param {string} [o.cachePath] where the last good document is kept
    * @param {(e:object)=>void} [o.onEvent] observability; never throws into us
    */
-  constructor({ apiKey, endpoint = DEFAULT_ENDPOINT, refreshMs = DEFAULT_REFRESH_MS,
+  constructor({ apiKey = null, url = null, publicKey = null, endpoint = DEFAULT_ENDPOINT,
+                refreshMs = DEFAULT_REFRESH_MS, graceMs = 0,
                 cachePath = null, onEvent = null, onChange = null, fetchImpl = null } = {}) {
-    if (!apiKey) throw new Error('RemotePolicy requires the meter apiKey');
+    if (!apiKey && !url) throw new Error('RemotePolicy requires a policy url (or the meter apiKey)');
     this.apiKey = apiKey;
-    this.url = endpoint.replace(/\/+$/, '') + '/v1/policy';
+    this.publicKey = publicKey;
+    this.graceMs = graceMs;
+    this.url = url || endpoint.replace(/\/+$/, '') + '/v1/policy';
     this.refreshMs = refreshMs;
     this.cachePath = cachePath || defaultCachePath();
     this.onEvent = onEvent || (() => {});
@@ -140,7 +179,14 @@ export class RemotePolicy {
 
       if (!res.ok) { this._emit('policy.error', { status: res.status }); return this.document; }
 
-      const doc = await res.json();
+      const raw = await res.json();
+      // A signed URL that is served unverified is an unauthenticated URL.
+      let doc = raw;
+      if (this.publicKey) {
+        const v = verifyEnvelope(raw, this.publicKey, { graceMs: this.graceMs });
+        if (!v.ok) { this._emit('policy.rejected', { why: v.reason }); return this.document; }
+        doc = v.policy;
+      }
       if (!isUsable(doc)) { this._emit('policy.rejected', { why: 'document not usable' }); return this.document; }
 
       this.document = doc;

@@ -164,7 +164,10 @@ test('the acceptance test: a dashboard rule produces a 403 on the next bot reque
   gate.close();
 });
 
-test('local configuration is a floor the remote policy cannot lower', async () => {
+test('local configuration is untouched by a fetched policy', async () => {
+  // The old shape compiled the remote policy into rules/rateLimits and merged.
+  // The spec's shape evaluates per request, so local config is now genuinely a
+  // floor: nothing overwrites it, and the policy is consulted alongside it.
   const gate = new Wayleave({
     rules: { suspected_bot: [['/admin', false]] },
     rateLimits: { declared_agent: 10 },
@@ -173,8 +176,59 @@ test('local configuration is a floor the remote policy cannot lower', async () =
                 rules: [{ id: 'q', lane: 'declared_agent', action: 'quota', quota: { limit: 99, windowSeconds: 60 } }] })]) },
   });
   await gate.ready();
-  // The locally-compiled rule is still there after the remote policy applied.
   assert.deepEqual(gate.rules.suspected_bot, [['/admin', false]]);
-  assert.equal(gate.rateLimits.declared_agent, 99);   // remote wins where both speak
+  assert.equal(gate.rateLimits.declared_agent, 10, 'local limit not overwritten');
+  assert.equal(gate.policy.document.version, 'v1', 'policy held for per-request evaluation');
+  gate.close();
+});
+
+test('a denial carries the rule id that caused it', async () => {
+  const gate = new Wayleave({
+    policy: { apiKey: 'k', refreshMs: 0, cachePath: await cacheFile(),
+      fetchImpl: fakeFetch([ok({ version: 'v1', default: 'allow',
+        rules: [{ id: 'block-unverified', route: '/api', verified: false, action: 'deny' }] })]) },
+  });
+  await gate.ready();
+  const r = await gate.handleAsync({ method: 'GET', path: '/api/catalog', ip: '203.0.113.9',
+                                     headers: { 'user-agent': 'python-requests/2.31' } });
+  assert.equal(r.status, 403);
+  assert.equal(r.ruleId, 'block-unverified');
+  assert.equal(r.headers['x-wayleave-rule'], 'block-unverified');
+  gate.close();
+});
+
+test('a quota denial is 429 with Retry-After, not a bare 403', async () => {
+  let n = 0;
+  const gate = new Wayleave({
+    rateWindow: 60,
+    quotaStore: { consume: async () => ++n <= 2 },
+    policy: { apiKey: 'k', refreshMs: 0, cachePath: await cacheFile(),
+      fetchImpl: fakeFetch([ok({ version: 'v1', default: 'allow',
+        rules: [{ id: 'cap', route: '/api', action: 'quota', quota: { limit: 2, windowSeconds: 60 } }] })]) },
+  });
+  await gate.ready();
+  const call = () => gate.handleAsync({ method: 'GET', path: '/api/x', ip: '198.51.100.7',
+                                        headers: { 'user-agent': 'python-requests/2.31' } });
+  assert.equal((await call()).status, 200);
+  assert.equal((await call()).status, 200);
+  const third = await call();
+  assert.equal(third.status, 429);
+  assert.equal(third.headers['retry-after'], '60');
+  gate.close();
+});
+
+test('a policy that throws during evaluation still serves the request', async () => {
+  const gate = new Wayleave({
+    quotaStore: { consume: async () => { throw new Error('store gone'); } },
+    policy: { apiKey: 'k', refreshMs: 0, cachePath: await cacheFile(),
+      fetchImpl: fakeFetch([ok({ version: 'v1', default: 'allow',
+        rules: [{ id: 'cap', route: '/api', action: 'quota', quota: { limit: 1, windowSeconds: 60 } }] })]) },
+  });
+  await gate.ready();
+  // The engine turns a throwing store into a deny, which is right for a quota.
+  // What must never happen is an exception reaching the request.
+  const r = await gate.handleAsync({ method: 'GET', path: '/api/x', ip: '198.51.100.8',
+                                     headers: { 'user-agent': 'python-requests/2.31' } });
+  assert.ok([403, 429].includes(r.status), 'denied, not thrown: ' + r.status);
   gate.close();
 });
