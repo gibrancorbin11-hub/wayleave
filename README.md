@@ -4,9 +4,11 @@
 [![npm](https://img.shields.io/npm/v/wayleave.svg)](https://www.npmjs.com/package/wayleave)
 [![install size](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/wayleave)
 
-**Observe agent traffic. Control access. Charge payment-ready agents.**
+**Know which AI agents cross your API — verified by signature, not guessed from an IP.**
 
-Wayleave is open-source middleware for request classification, signed-agent verification, route-level policies and pricing. The [hosted Meter](https://meter.wayleave.dev) records traffic and settlement activity.
+Wayleave is open-source middleware that classifies every request, verifies signed agents against a key
+directory, applies the access rules you set, and prices the non-human traffic with HTTP 402. Humans are
+never charged. The [hosted Meter](https://meter.wayleave.dev) records what crossed and what settled.
 
 Zero dependencies. Node's native crypto only. TypeScript declarations included.
 
@@ -88,6 +90,59 @@ Confirming settlement is a network call, so a real `verifyPayment` returns a
 Promise. The synchronous `handle()` cannot await one and will tell you so
 rather than quietly denying every payment.
 
+## Enforce rules you set elsewhere
+
+A policy the gate fetches, rather than configuration compiled into your app:
+
+```js
+const gate = new Wayleave({
+  policy: { url: 'https://meter.wayleave.dev/v1/policy/public/<id>.json',
+            publicKey: WAYLEAVE_ROOT_KEY },
+});
+await gate.ready();
+app.use(gate.express());
+```
+
+Fetched on a timer and evaluated from memory — never a network call inside a request. A denial
+returns `403` with `x-wayleave-rule: <ruleId>`; a quota denial returns `429` with `Retry-After`.
+
+The document is signed, which is the only reason the URL can be public. A CDN, or anyone on the
+path, can serve whatever it likes and the gate refuses the bytes.
+
+**If we are unreachable, your traffic is unaffected.** Last cached policy; with no cache, the gate
+behaves exactly as if no policy were configured. That is tested five ways, and the cold-start case is
+asserted by comparing against a gate constructed with no policy at all.
+
+## Be found by the agents that can pay
+
+A priced route nothing can discover earns nothing. Every install with `pricedPaths` serves a
+manifest derived from your own configuration:
+
+```js
+new Wayleave({
+  pricedPaths: { '/api/premium': 0.05 },
+  payment: { payTo: '0xYourAddress', network: 'base' },
+  publicOrigin: 'https://api.example.com',
+});
+```
+
+```sh
+curl https://api.example.com/.well-known/x402
+```
+
+No priced routes, or `manifest: false`, returns 404 — an empty manifest tells an index there is
+nothing to buy here, which is a claim.
+
+Use `gate.paymentRequirements(req)` to build your 402 body. It returns the same spec-shaped entry the
+manifest advertises, so the two cannot disagree about the price.
+
+Three details that decide whether an index reads you at all, all verified against the spec rather
+than assumed: the path is `/.well-known/x402` (not `.json`), `asset` is the **token contract
+address** rather than a symbol, and `maxTimeoutSeconds` is required. Note that the merged x402
+specification has no well-known discovery document — this is a
+[proposed extension](https://datatracker.ietf.org/doc/html/draft-hawkins-x402-dns-discovery-01)
+that tooling in the wild does fetch.
+
 ## Guarantees, honestly stated
 
 - Signature verification is real Ed25519 over an RFC 9421 signature base — forged keys, tampered requests, expired signatures, and replay-farming windows are all rejected. Tested adversarially, and against other implementations' wire formats rather than only its own.
@@ -95,20 +150,39 @@ rather than quietly denying every payment.
 - Signature parameters are parsed as an RFC 9421 dictionary: order-independent, `alg` enforced as Ed25519, any signature label, and the signature base is built from whatever components the signer declared. Requests signed in Cloudflare's documented format verify.
 - Local verification is benchmarked by the tests; latency depends on your hardware and configuration. Payment-provider network calls add latency.
 - The metering hook can throw, crash, or hang your billing backend — serving continues. Your uptime never depends on ours.
-- Key rotation has a seam but no implementation. `directories` accepts a resolver function you can point at a cache, but there is no JWKS fetcher in the box and the resolver must not block. Wiring that cache is still your job.
+- Key rotation has an implementation now: `directories: 'wayleave:default'` fetches a signed directory on a timer and resolves from memory, and you can still pass your own resolver function instead. The resolver must not block; that constraint has not moved. The bundled registry currently lists no operators — an empty directory resolves nothing rather than everything, so it changes no decision until it has entries.
 - **A bot that sends a browser `user-agent` and an `accept-language` header is classified `human` and crosses priced routes free.** Those two headers are the entire bypass. The `human` lane is a fall-through — it is reached by tripping none of the automation tells, which is absence of evidence, not evidence of a person. There is no TLS fingerprinting and no challenge here; that work belongs at your edge or CDN, and pretending otherwise would be the dishonest version of this list. (`verifyAgentIP` checks a *declared* operator against its published ranges — it does nothing about a request claiming to be a browser, which is this bypass.) `strictPricedPaths: true` inverts the burden on priced routes so that only a verified signature or your own `confirmHuman(req)` crosses. Recommended wherever there is a price.
 - Wayleave prices **disclosure**; it does not detect **concealment**. It is a tollbooth, not a wall — it works on operators who want to be identifiable, which today is most of the ones worth billing.
 - This is a **screening and pricing layer, not a guarantee**. Every decision returns its evidence and is loggable.
 
 ## Status
 
-v0.3.0 — verification, lanes, policy, pricing, and the metering hook, all under test (101 scenarios, including forgery, tampering, replay, guessed payment proofs, spoofed rate-limit identities, spoofed browser headers, spoofed operator identity, and cross-implementation wire formats). Payment settlement network integration is in progress; the 402 challenge is built in and settlement confirmation is a function you supply.
+v0.5.0 — 153 tests, zero dependencies.
 
-0.1.5 closes a hole worth naming: before it, a priced route accepted a payment proof that any agent could derive from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement confirmation is now yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced route, upgrade.
+**0.5.0** does three things. Rules you set are now *enforced*: `policy: { url, publicKey }` fetches a
+signed policy, verifies it, caches it, and evaluates per request — denials carry the rule id in
+`x-wayleave-rule`, and a quota denial is 429 with `Retry-After`. `directories: 'wayleave:default'`
+resolves agent keys from a signed directory. And every install with a priced route now serves
+`/.well-known/x402`, so discovery indexes can find it.
 
-0.1.6 addresses the other half of the same question. Payment could be faked; so could being human. `strictPricedPaths` lets a priced route demand positive evidence instead of accepting the absence of a bot signal as one.
+The property worth testing for yourself: **a Wayleave outage cannot break your API.** Unreachable,
+500, unparseable, wrong signature — each keeps the last good policy, and with no cache at all the
+gate behaves exactly as if no policy were configured. Money is the opposite law and fails closed: an
+unreachable rail is a 402, never free passage on a priced route.
 
-0.2.1 ships `wayleave/meter`, a buffering and retrying sink for the hosted meter. 0.2.0 turns three hardcoded strategies into seams — state, metering, and key lookup — so shared storage, durable billing, and key rotation become configuration rather than a rewrite. Defaults are unchanged; see [Extending it](#extending-it).
+**0.4.1** fixed a rail that could never settle. Two required fields were missing from every request
+the x402 module made — `asset`, and the EIP-712 domain in `extra` — so the documented configuration
+would have failed for anyone who tried it. Found by settling a real payment, not by reading the code.
+If you were running the Coinbase rail before 0.4.1 and saw nothing settle, that is why.
+
+**0.1.5** closed a hole worth naming: a priced route accepted a payment proof any agent could derive
+from the 402 challenge it had just been sent — free passage, recorded as revenue. Settlement
+confirmation is yours to supply and denies by default. If you shipped 0.1.4 or earlier on a priced
+route, upgrade.
+
+**0.1.6** addressed the other half: payment could be faked, and so could being human.
+`strictPricedPaths` lets a priced route demand positive evidence rather than accepting the absence of
+a bot signal as one.
 
 ## How payment actually works
 
