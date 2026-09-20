@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.5.0
+
+### Rules you set are enforced at your origin
+
+Until now `policy` meant a builder that generated code you pasted somewhere.
+The gate now fetches a policy the meter serves, verifies its signature, caches
+it, and evaluates it per request. A denial returns the rule id in
+`x-wayleave-rule`; a quota denial is 429 with `Retry-After` rather than a bare
+403, because a caller who can usefully come back should be told when.
+
+```js
+const gate = new Wayleave({ policy: { url, publicKey } });
+await gate.ready();
+```
+
+The context is built from this library's own verification result. Nothing in it
+comes from a header or body the caller controls — the evaluator only honours
+`subject` and `operator` selectors when `identity.verified` is true, and passing
+a caller's claims through would defeat exactly that check.
+
+### A Wayleave outage cannot break your API
+
+This is the property the whole design exists for, so it is tested rather than
+asserted. Unreachable, 500, unparseable, wrong signature, structurally wrong:
+each keeps the last good policy. A restart mid-outage comes back enforcing what
+it last knew, which is why the cache is on disk. And with no cache and nothing
+reachable, the gate behaves exactly as if no policy were configured — compared
+against a gate constructed with none, including that an unknown agent stays
+unknown rather than becoming suspected.
+
+Money is the opposite law and still fails closed. An unreachable rail is a 402,
+never free passage on a priced route.
+
+### `directories: 'wayleave:default'`
+
+Resolves to a signed directory of agent operator keys, fetched on a timer and
+read from memory — never a network call inside a request. Root keys are pinned
+inside this package, which is what makes a compromised CDN harmless: a key you
+fetch from the same place as the document proves nothing.
+
+The pinned list is empty until a root key exists, and an empty list verifies
+nothing rather than everything. Unconfigured is inert, never permissive.
+
+### Discovery: `/.well-known/x402`
+
+A priced route that nothing can find earns nothing. The gate serves a manifest
+derived entirely from `pricedPaths` and `payment`, so an install advertises what
+it sells. No priced routes, or `manifest: false`, is a 404 — an empty manifest
+tells an index there is nothing to buy here, which is a claim.
+
+Three corrections worth stating, because the obvious implementation gets them
+wrong: the path is `/.well-known/x402`, not `.json`; `asset` is the token
+contract address, not a symbol like `"usdc"`; and `maxTimeoutSeconds` is
+required. Any of the three makes an index silently skip the endpoint, which is
+indistinguishable from not publishing at all.
+
+The merged x402 specification has no well-known discovery document — its
+mechanism is the `bazaar` extension inside 402 responses. The manifest is a
+proposed extension that tooling in the wild does fetch. Worth serving; not a
+standard, and `manifest.js` says so.
+
+### Also
+
+`policy-engine.js` ships, so evaluation happens in-process with zero
+dependencies, as everything here does. A test asserts it has not drifted from
+the meter's copy: a rule the dashboard accepts and the origin ignores looks
+exactly like the product working.
+
+152 tests.
+
 ## 0.4.1
 
 ### The Coinbase rail could not settle a payment in any default configuration
