@@ -25,7 +25,7 @@ import { MeterSink } from './meter.js';
 import { RemotePolicy } from './policy.js';
 import { evaluatePolicy } from './policy-engine.js';
 import { Registry } from './registry.js';
-import { ManifestServer, MANIFEST_PATHS, originFor } from './manifest.js';
+import { ManifestServer, MANIFEST_PATHS, originFor, paymentRequirementsFor } from './manifest.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -547,6 +547,19 @@ export class Wayleave {
    * Checked before classification so it is never metered, never rate-limited
    * and never priced. A paywalled discovery document cannot be discovered.
    */
+  /**
+   * Spec-shaped payment requirements for a priced path, or null.
+   *
+   * Use this to build a 402 body. The alternative is every application
+   * inventing its own translation of the internal challenge, and getting it
+   * wrong the same way once each.
+   */
+  paymentRequirements(req) {
+    if (!this.manifests) return null;
+    const origin = originFor(req, this.publicOrigin);
+    return origin ? paymentRequirementsFor(this.manifests.forOrigin(origin), req.path) : null;
+  }
+
   manifestFor(req) {
     if (!this.manifests || !MANIFEST_PATHS.includes(req.path)) return null;
     const origin = originFor(req, this.publicOrigin);

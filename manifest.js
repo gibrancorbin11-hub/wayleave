@@ -106,6 +106,23 @@ export function buildManifest({ pricedPaths = {}, payment = {}, origin,
 const isAddress = v => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
 const hostOf = origin => { try { return new URL(origin).host; } catch { return 'wayleave resource server'; } };
 
+/**
+ * The x402 PaymentRequirements for one priced path.
+ *
+ * The gate's own `challenge` is an internal shape — `{scheme:'x402',
+ * price_usd, resource}` — which is fine for an application that speaks it and
+ * wrong for anything that validates against the x402 schema. An index reading
+ * that body skips the endpoint, silently, which is the same as never having
+ * published. Applications returning a 402 body should use this, so the 402 and
+ * the manifest cannot describe different prices.
+ */
+export function paymentRequirementsFor(manifest, path) {
+  if (!manifest) return null;
+  const entry = manifest.resources?.find(r => { try { return new URL(r.url).pathname === path; } catch { return false; } })
+    || manifest.resources?.find(r => r.url.endsWith(path));
+  return entry?.accepts?.[0] ?? null;
+}
+
 /** The canonical path and the alias we also answer. */
 export const MANIFEST_PATHS = ['/.well-known/x402', '/.well-known/x402.json'];
 

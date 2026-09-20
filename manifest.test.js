@@ -135,3 +135,28 @@ test('no priced routes, or manifest:false, means 404 rather than an empty docume
   assert.equal(on.manifestFor({ path: '/other', headers: {} }), null);
   assert.equal(on.manifestFor({ path: '/.well-known/x402', headers: {} }).status, 200);
 });
+
+test('the 402 body can be built from the same source as the manifest', () => {
+  const gate = new Wayleave({
+    pricedPaths: { '/api/classify': 0.001 },
+    payment: { payTo: PAY_TO, network: 'base' },
+    publicOrigin: 'https://demo.example',
+  });
+  const req = { path: '/api/classify', headers: {} };
+  const pr = gate.paymentRequirements(req);
+
+  // Spec shape, not the internal challenge shape. An index reading
+  // {scheme:'x402', price_usd} skips the endpoint without saying so.
+  assert.equal(pr.scheme, 'exact');
+  assert.equal(pr.maxAmountRequired, '1000');
+  assert.equal(pr.resource, 'https://demo.example/api/classify');   // absolute
+  assert.ok(pr.asset && pr.payTo && pr.network && pr.maxTimeoutSeconds);
+  assert.equal(pr.price_usd, undefined);
+
+  // The 402 and the manifest cannot disagree: same object, one source.
+  const fromManifest = gate.manifestFor({ path: '/.well-known/x402', headers: {} })
+    .body.resources[0].accepts[0];
+  assert.deepEqual(pr, fromManifest);
+  assert.equal(gate.paymentRequirements({ path: '/free', headers: {} }), null);
+  gate.close();
+});
