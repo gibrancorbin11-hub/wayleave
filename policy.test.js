@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { RemotePolicy, compilePolicy } from './policy.js';
@@ -131,9 +131,17 @@ test('deleting the policy stops enforcement rather than leaving the old one', as
   assert.equal(JSON.parse(await readFile(path, 'utf8')).document, null);
 });
 
-test('an unwritable cache is survivable, not fatal', async () => {
+test('an unwritable cache is survivable, not fatal', async t => {
+  // A read-only directory we made, rather than a path that happens to be
+  // unwritable on the machine running this. The previous value was
+  // /proc/nope/policy.json, which is a guess about Linux from macOS: /proc
+  // does not exist here, so this test was asserting one thing locally and
+  // something else on CI.
+  const dir = await mkdtemp(join(tmpdir(), 'wl-ro-'));
+  await chmod(dir, 0o500);
+  t.after(() => chmod(dir, 0o700).catch(() => {}));
   const events = [];
-  const p = new RemotePolicy({ apiKey: 'k', refreshMs: 0, cachePath: '/proc/nope/policy.json',
+  const p = new RemotePolicy({ apiKey: 'k', refreshMs: 0, cachePath: join(dir, 'policy.json'),
                                onEvent: e => events.push(e.type), fetchImpl: fakeFetch([ok(DOC)]) });
   await p.start();
   assert.equal(p.document.version, 'v1');
