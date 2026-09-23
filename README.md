@@ -122,10 +122,7 @@ rather than quietly denying every payment.
 
 ## Enforce rules you set elsewhere
 
-> Requires 0.5.0. npm currently serves **0.4.1**, which has no `policy` option —
-> installing from npm and pasting this will silently do nothing. Until 0.5.0 is
-> published, install from source:
-> `npm install github:gibrancorbin11-hub/wayleave`
+> Requires 0.5.0 or later, which is what `npm install wayleave` now gives you.
 
 A policy the gate fetches, rather than configuration compiled into your app:
 
@@ -192,7 +189,7 @@ that tooling in the wild does fetch.
 
 ## Status
 
-v0.5.0 — 155 tests, zero dependencies. Published on npm: 0.4.1.
+v0.5.0 — 155 tests, zero dependencies. Published on npm.
 
 **0.5.0** does three things. Rules you set are now *enforced*: `policy: { url, publicKey }` fetches a
 signed policy, verifies it, caches it, and evaluates per request — denials carry the rule id in
