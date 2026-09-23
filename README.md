@@ -25,6 +25,36 @@ Then policy runs per lane: allow, deny, rate-limit — and on routes you price, 
 
 Only the first lane is cryptographic. The other three are read off what the client says about itself, so a bot willing to lie reaches the human lane — see [Guarantees](#guarantees-honestly-stated), and set `strictPricedPaths` on anything you charge for.
 
+## Two ways to use it
+
+**1. The hosted Identity API — no install, any language.** Post a request's
+signature headers and get back who signed it and which lane it belongs in.
+Nothing is stored, and your traffic never routes through us.
+
+```sh
+curl -X POST https://wayleave-api-production.up.railway.app/v1/identify \
+  -H "Authorization: Bearer $WAYLEAVE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"method":"GET","url":"https://api.yourapp.com/v1/data",
+       "headers":{"user-agent":"...","signature":"...","signature-input":"..."},
+       "client_ip":"203.0.113.7"}'
+```
+
+```json
+{ "lane": "verified_agent", "verified": true,
+  "identity": { "keyid": "k1", "operator": "Example Labs" },
+  "signature": { "present": true, "valid": true, "reason": null } }
+```
+
+The same evaluator answers here and in the middleware, and a test asserts they
+agree — if the two front doors disagreed about one request you would have no
+way to know which to believe. (`api.wayleave.dev` is the intended hostname and
+has no DNS record yet; the URL above is the one that answers today.)
+
+**2. The middleware — in your own process.** Nothing leaves your server that
+you do not send. This is the path if you want to price routes, enforce access
+rules, or stay in-process. Start below.
+
 ## Quickstart: observe first
 
 ```sh
@@ -92,6 +122,11 @@ rather than quietly denying every payment.
 
 ## Enforce rules you set elsewhere
 
+> Requires 0.5.0. npm currently serves **0.4.1**, which has no `policy` option —
+> installing from npm and pasting this will silently do nothing. Until 0.5.0 is
+> published, install from source:
+> `npm install github:gibrancorbin11-hub/wayleave`
+
 A policy the gate fetches, rather than configuration compiled into your app:
 
 ```js
@@ -157,7 +192,7 @@ that tooling in the wild does fetch.
 
 ## Status
 
-v0.5.0 — 153 tests, zero dependencies.
+v0.5.0 — 155 tests, zero dependencies. Published on npm: 0.4.1.
 
 **0.5.0** does three things. Rules you set are now *enforced*: `policy: { url, publicKey }` fetches a
 signed policy, verifies it, caches it, and evaluates per request — denials carry the rule id in
@@ -169,6 +204,13 @@ The property worth testing for yourself: **a Wayleave outage cannot break your A
 500, unparseable, wrong signature — each keeps the last good policy, and with no cache at all the
 gate behaves exactly as if no policy were configured. Money is the opposite law and fails closed: an
 unreachable rail is a 402, never free passage on a priced route.
+
+That claim is not only unit-tested. `acceptance-policy.test.js` drives the real meter over a socket
+and this gate fetching over HTTP with a real Ed25519 signature: a rule is set and enforced, changed
+and re-enforced, a forged document is refused, and the service is then killed while traffic keeps
+flowing. The same run against production on 2026-09-22 found a bug no local test had — the public
+policy URL advertised an ETag and ignored `if-none-match`, so every poll re-sent and re-signed the
+whole document. Fixed and covered.
 
 **0.4.1** fixed a rail that could never settle. Two required fields were missing from every request
 the x402 module made — `asset`, and the EIP-712 domain in `extra` — so the documented configuration
