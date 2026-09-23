@@ -145,6 +145,17 @@ test('a policy is set, served signed, enforced, changed, and survives our outage
   await gate.refresh();
   assert.equal(denies(gate, 'suspected_bot', '/api/data'), false, 'the change must reach the gate');
 
+  // 3b — the public URL is polled forever, so a conditional poll must be cheap.
+  // It advertised an ETag and ignored if-none-match, making every poll re-send
+  // the document and re-sign it.
+  const fresh = await fetch(`${base}/v1/policy/public/${publicId}.json`);
+  const etag = fresh.headers.get('etag');
+  assert.ok(etag, 'the public document must carry an ETag');
+  const conditional = await fetch(`${base}/v1/policy/public/${publicId}.json`,
+                                  { headers: { 'if-none-match': etag } });
+  assert.equal(conditional.status, 304, 'an unchanged policy must answer 304, not the whole document');
+  assert.equal(await conditional.text(), '', '304 carries no body');
+
   // 4 — we go down. Traffic must not.
   await new Promise(r => server.close(r));
   const lastKnown = gate.document;
