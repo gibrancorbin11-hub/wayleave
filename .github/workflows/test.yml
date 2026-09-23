@@ -12,18 +12,29 @@ on:
 permissions:
   contents: read
 
+# Runs #26 and #27 each burned 6h00m across four jobs before GitHub's hard
+# cap killed them, and every push after that queued behind them. One stuck
+# run should cost minutes and should not block the next push.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # The suite finishes in well under a minute; 15 is generous. Without this
+    # the default is 6 hours, which is how a hang became a day of runner time
+    # and a red badge on the README.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         node: ['18', '20', '22', '24']
     name: node ${{ matrix.node }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
 
