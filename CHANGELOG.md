@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.1
+
+### The manifest the README promised was never served through express()
+
+`app.use(gate.express())` is the integration the Quickstart shows, and the
+README says every install with a priced route serves `/.well-known/x402`.
+The adapter never called `manifestFor()`, so for Express users that path
+404'd. The live demo works because it hand-wires `gate.manifestFor(request)`
+-- which is why nobody noticed.
+
+Found by scaffolding a project with `create-wayleave-app`, following the
+README exactly, and curling the path it prints.
+
+The manifest is now answered inside `express()` before classification, rate
+limiting or pricing. Two properties that matter and are now tested: a
+scraper can read it (the agents who would pay are precisely the ones
+classified as bots, so a manifest behind classification is invisible to its
+audience), and no priced routes still means 404 rather than an empty
+document, because an empty manifest is a claim that there is nothing to buy.
+
 ## 0.5.0
 
 ### Rules you set are enforced at your origin

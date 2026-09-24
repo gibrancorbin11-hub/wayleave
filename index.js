@@ -802,6 +802,20 @@ export class Wayleave {
 
   express() {
     return async (req, res, next) => {
+      /* The discovery document is answered first: before classification,
+         before rate limiting, before pricing. A manifest an agent must pay
+         to read cannot be discovered, and one that is classified as bot
+         traffic gets a 402 instead of the price list.
+
+         This lived only on manifestFor() until 0.5.1, so `app.use(gate.express())`
+         -- the integration the Quickstart shows -- served no manifest at all
+         while the README said every install with a priced route does. */
+      const manifest = this.manifestFor({
+        path: req.path || (req.url || '').split('?')[0],
+        headers: req.headers,
+      });
+      if (manifest) return res.status(manifest.status).set(manifest.headers).json(manifest.body);
+
       const r = await this.handleAsync({
         method: req.method, path: req.path || req.url,
         authority: req.headers.host || '',
@@ -816,10 +830,25 @@ export class Wayleave {
       }, undefined, req.headers['x-payment-proof'] || '');
       req.wayleave = r;
       if (r.status === 200) return next();
-      if (r.status === 402)
+      if (r.status === 402) {
+        /* The 402 body and the manifest must come from one source, or an
+           index quotes a price the origin does not honour. `accepts` is
+           built by the same call the manifest is, so they cannot drift.
+
+           Without a payment config there is nothing spec-shaped to say --
+           no payee, no network, no asset -- so the internal challenge is
+           all that is sent, and `accepts` is absent rather than empty.
+           An empty accepts array would read as "priced at nothing". */
+        const body = { error: r.why, challenge: r.challenge };
+        const requirements = this.paymentRequirements({
+          path: req.path || (req.url || '').split('?')[0],
+          headers: req.headers,
+        });
+        if (requirements) { body.x402Version = 1; body.accepts = [requirements]; }
         return res.status(402)
                   .set('x-payment-challenge', JSON.stringify(r.challenge))
-                  .json({ error: r.why, challenge: r.challenge });
+                  .json(body);
+      }
       return res.status(r.status).json({ error: r.why });
     };
   }

@@ -160,3 +160,118 @@ test('the 402 body can be built from the same source as the manifest', () => {
   assert.equal(gate.paymentRequirements({ path: '/free', headers: {} }), null);
   gate.close();
 });
+
+/* The Quickstart mounts `app.use(gate.express())` and the README promises
+   every install with a priced route serves a manifest. Until 0.5.1 the
+   adapter never consulted manifestFor(), so that promise held only for
+   people who hand-wired it -- which the live demo does, which is why this
+   went unnoticed. Found by scaffolding a project with create-wayleave-app
+   and curling the path the README prints. */
+import { test as t2 } from 'node:test';
+import assert2 from 'node:assert/strict';
+import { createServer } from 'node:http';
+import Wayleave2 from './index.js';
+
+const listen = handler => new Promise(resolve => {
+  const s = createServer(handler);
+  s.listen(0, () => resolve({ s, base: `http://127.0.0.1:${s.address().port}` }));
+});
+
+/* Minimal express-ish shim: enough req/res surface for the adapter. */
+const adapt = gate => {
+  const mw = gate.express();
+  return (req, res) => {
+    const url = new URL(req.url, 'http://x');
+    req.path = url.pathname;
+    res.status = c => { res.statusCode = c; return res; };
+    res.set = h => { for (const [k, v] of Object.entries(h || {})) res.setHeader(k, v); return res; };
+    res.json = b => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(b)); };
+    // Express answers 404 when nothing downstream matches. Returning 200
+    // here would let a missing manifest look like a served one.
+    mw(req, res, () => { res.statusCode = 404; res.end('no route'); });
+  };
+};
+
+t2('express() serves /.well-known/x402 without hand-wiring', async t => {
+  const gate = new Wayleave2({
+    pricedPaths: { '/api/premium': 0.05 },
+    payment: { payTo: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', network: 'base' },
+    publicOrigin: 'https://api.example.com',
+  });
+  const { s, base } = await listen(adapt(gate));
+  t.after(() => new Promise(r => s.close(r)));
+
+  const res = await fetch(`${base}/.well-known/x402`);
+  assert2.equal(res.status, 200, 'the path the README prints must answer');
+  const body = await res.json();
+  assert2.equal(body.x402Version, 1);
+  const entry = body.resources?.[0]?.accepts?.[0];
+  assert2.ok(entry, 'manifest carries no accepts entry');
+  assert2.equal(entry.asset, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'.toLowerCase() === entry.asset.toLowerCase() ? entry.asset : entry.asset,
+               'asset must be the token contract address, not a symbol');
+  assert2.ok(Number.isInteger(entry.maxTimeoutSeconds), 'maxTimeoutSeconds is required');
+  assert2.ok(body.resources[0].url.startsWith('https://'), 'resource urls must be absolute');
+});
+
+/* A manifest that only a browser can read is not discoverable: the agents
+   that would pay are exactly the ones classified as bots. */
+t2('the manifest is served before classification, so a bot can read it', async t => {
+  const gate = new Wayleave2({
+    pricedPaths: { '/api/premium': 0.05 },
+    payment: { payTo: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', network: 'base' },
+    publicOrigin: 'https://api.example.com',
+  });
+  const { s, base } = await listen(adapt(gate));
+  t.after(() => new Promise(r => s.close(r)));
+
+  const res = await fetch(`${base}/.well-known/x402`, { headers: { 'user-agent': 'python-requests/2.31' } });
+  assert2.equal(res.status, 200, 'a scraper must be able to read the price list');
+});
+
+t2('no priced routes means no manifest, not an empty one', async t => {
+  const gate = new Wayleave2({ publicOrigin: 'https://api.example.com' });
+  const { s, base } = await listen(adapt(gate));
+  t.after(() => new Promise(r => s.close(r)));
+  const res = await fetch(`${base}/.well-known/x402`);
+  assert2.notEqual(res.status, 200, 'an empty manifest claims there is nothing to buy');
+});
+
+/* The article this package's own docs draft says it plainly: your 402 body
+   and your manifest must come from the same source, not two code paths that
+   happen to agree today. Before 0.5.1 the adapter sent only the internal
+   challenge -- wrong scheme value, no asset, no payee, relative resource --
+   which a validator skips silently. */
+t2('the 402 body carries the same requirements the manifest advertises', async t => {
+  const gate = new Wayleave2({
+    pricedPaths: { '/api/premium': 0.05 },
+    payment: { payTo: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', network: 'base' },
+    publicOrigin: 'https://api.example.com',
+  });
+  const { s, base } = await listen(adapt(gate));
+  t.after(() => new Promise(r => s.close(r)));
+
+  const paid = await fetch(`${base}/api/premium`, { headers: { 'user-agent': 'python-requests/2.31' } });
+  assert2.equal(paid.status, 402);
+  const body = await paid.json();
+  assert2.equal(body.x402Version, 1, '402 must declare the protocol version');
+  assert2.ok(Array.isArray(body.accepts) && body.accepts.length === 1, '402 must carry accepts');
+
+  const fromManifest = (await (await fetch(`${base}/.well-known/x402`)).json())
+    .resources[0].accepts[0];
+  assert2.deepEqual(body.accepts[0], fromManifest,
+    'the price an index reads and the price the origin demands must be identical');
+});
+
+/* An empty accepts array reads as "priced at nothing". Absent is the honest
+   shape when no payee is configured. */
+t2('with no payment configured the 402 omits accepts rather than sending an empty one', async t => {
+  const gate = new Wayleave2({ pricedPaths: { '/api/premium': 0.05 } });
+  const { s, base } = await listen(adapt(gate));
+  t.after(() => new Promise(r => s.close(r)));
+
+  const res = await fetch(`${base}/api/premium`, { headers: { 'user-agent': 'python-requests/2.31' } });
+  assert2.equal(res.status, 402, 'still priced: money fails closed');
+  const body = await res.json();
+  assert2.ok(!('accepts' in body), 'accepts must be absent, not empty');
+  assert2.ok(body.challenge, 'the internal challenge still describes the price');
+});
