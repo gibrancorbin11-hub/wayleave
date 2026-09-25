@@ -10,10 +10,16 @@
 # is the second layer. Its real teeth are connect-src and form-action: an
 # injected script can't POST a signup list anywhere but back to this origin.
 #
-# Everything is self-hosted on purpose — fonts included — with exactly one
-# exception: the Command Center pixel. It is named twice below, in script-src
-# (to load px.js) and in img-src (the beacon is `new Image().src`, not fetch,
-# so connect-src would not have helped and is deliberately still 'self').
+# Everything is self-hosted on purpose — fonts included — with two exceptions.
+#
+# The Command Center pixel, named twice below: script-src (to load px.js) and
+# img-src (the beacon is `new Image().src`, not fetch, so connect-src does not
+# enter into it).
+#
+# meter.wayleave.dev in connect-src, so the homepage can read
+# /v1/public/stats and show real crossing counts instead of illustrative
+# ones. That endpoint returns aggregate totals only — no identity, no path,
+# no amount — so allowing it here grants the page nothing worth stealing.
 # ADD ANOTHER HOST AND THE CSP WILL BLOCK IT until it's listed here; that's
 # the point, but it also means a feature that breaks right after you add a
 # fetch() or a CDN link is usually this file, not your code.
@@ -30,4 +36,4 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://command-center-production-b33a.up.railway.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://command-center-production-b33a.up.railway.app; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://command-center-production-b33a.up.railway.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://command-center-production-b33a.up.railway.app; font-src 'self'; connect-src 'self' https://meter.wayleave.dev; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
