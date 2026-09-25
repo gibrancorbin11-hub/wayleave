@@ -32,7 +32,7 @@ signature headers and get back who signed it and which lane it belongs in.
 Nothing is stored, and your traffic never routes through us.
 
 ```sh
-curl -X POST https://wayleave-api-production.up.railway.app/v1/identify \
+curl -X POST https://api.wayleave.dev/v1/identify \
   -H "Authorization: Bearer $WAYLEAVE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"method":"GET","url":"https://api.yourapp.com/v1/data",
@@ -48,8 +48,7 @@ curl -X POST https://wayleave-api-production.up.railway.app/v1/identify \
 
 The same evaluator answers here and in the middleware, and a test asserts they
 agree — if the two front doors disagreed about one request you would have no
-way to know which to believe. (`api.wayleave.dev` is the intended hostname and
-has no DNS record yet; the URL above is the one that answers today.)
+way to know which to believe.
 
 **2. The middleware — in your own process.** Nothing leaves your server that
 you do not send. This is the path if you want to price routes, enforce access
