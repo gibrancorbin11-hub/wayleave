@@ -62,8 +62,10 @@ npm install wayleave
 
 [Create a Meter account](https://meter.wayleave.dev/account.html), issue an API key,
 and set `WAYLEAVE_METER_KEY` in your server environment. Signing in does not
-start billing. The optional hosted Meter trial requires a card and becomes
-$49/month after 3 days unless canceled; see your account for current terms.
+start billing. The optional hosted plans require a card and start after a
+3-day trial unless canceled — current plans and prices are at
+[wayleave.dev/pricing](https://wayleave.dev/pricing/), which is the one place
+they are kept up to date.
 
 In your existing Express app:
 
