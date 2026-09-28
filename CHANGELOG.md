@@ -429,3 +429,26 @@ First public release.
 Settlement is a pluggable stub: the 402 challenge and payment-proof check work,
 wiring a real payment network is next. Key directories load from config rather
 than a live JWKS fetch.
+
+## 0.5.2
+
+Two security fixes. Both were live in 0.5.1, in the package that sits in a
+customer's request path, and both failed quietly — the gate kept answering, it
+just answered about the wrong routes.
+
+**Path prefixes are matched at a boundary, not as strings.** `pricedPaths: {
+'/api': 0.05 }` charged for `/apiv2` and `/api-internal`; a rule `['/public',
+true]` allowed `/public-admin`. The pricing case bills someone for a route
+nobody priced; the allow case is a hole. A trailing slash on the prefix means
+the same thing either way. Exported as `pathUnder(path, prefix)`.
+
+**An unsigned public policy document is refused.** `new RemotePolicy({ url })`
+with no `publicKey` applied whatever that URL returned. A public policy URL is
+publicly cacheable by design, so the signature is the only thing
+authenticating it — without one, whoever can answer the URL writes your access
+rules. It now throws at construction, where someone is watching, rather than
+on a poll at three in the morning. Pass `allowUnsigned: true` for a URL you
+trust end to end.
+
+Unaffected: `new RemotePolicy({ apiKey })`. That fetches from the customer's
+own meter over TLS with their key, which is an authenticated channel.

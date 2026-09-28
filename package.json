@@ -1,7 +1,7 @@
 {
   "name": "wayleave",
-  "version": "0.5.1",
-  "description": "Know which AI agents cross your API — verified by signature, not guessed from an IP. Sorts every request into four lanes, prices the non-human ones with HTTP 402, and never charges a human. Zero dependencies.",
+  "version": "0.5.2",
+  "description": "Know which AI agents cross your API \u2014 verified by signature, not guessed from an IP. Sorts every request into four lanes, prices the non-human ones with HTTP 402, and never charges a human. Zero dependencies.",
   "type": "module",
   "main": "index.js",
   "types": "./index.d.ts",

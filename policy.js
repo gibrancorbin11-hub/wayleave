@@ -114,9 +114,33 @@ export class RemotePolicy {
    * @param {(e:object)=>void} [o.onEvent] observability; never throws into us
    */
   constructor({ apiKey = null, url = null, publicKey = null, endpoint = DEFAULT_ENDPOINT,
-                refreshMs = DEFAULT_REFRESH_MS, graceMs = 0,
+                refreshMs = DEFAULT_REFRESH_MS, graceMs = 0, allowUnsigned = false,
                 cachePath = null, onEvent = null, onChange = null, fetchImpl = null } = {}) {
     if (!apiKey && !url) throw new Error('RemotePolicy requires a policy url (or the meter apiKey)');
+    /* A policy document decides who is allowed through and what they are
+       charged. Applying one nobody signed means whoever can answer that URL
+       — a hijacked CDN, a DNS answer, anyone on the path — writes your access
+       rules. Until 0.5.2 a missing publicKey silently skipped the check.
+
+       The requirement applies to a bare `url` only. With `apiKey` the document
+       comes from the customer's own meter over TLS with their key, which is an
+       authenticated channel; the signature is defence in depth there, not the
+       only defence. A public policy URL has no such channel — being publicly
+       cacheable is the point of it — so the signature IS the authentication.
+
+       Refusing at construction rather than at fetch time is deliberate: the
+       failure belongs at startup, where someone is watching, not on a poll at
+       three in the morning. `allowUnsigned: true` remains for a URL you trust
+       end to end, and it has to be written down. */
+    if (url && !apiKey && !publicKey && !allowUnsigned)
+      throw new Error(
+        'RemotePolicy requires publicKey: an unsigned policy document is an ' +
+        'unauthenticated one, and it decides access and pricing. Pass the ' +
+        'signing key, or allowUnsigned: true if you genuinely trust this URL.');
+    this.allowUnsigned = allowUnsigned;
+    // True only for a bare public URL, where the signature is the only
+    // thing authenticating the document.
+    this._needsSignature = Boolean(url) && !apiKey;
     this.apiKey = apiKey;
     this.publicKey = publicKey;
     this.graceMs = graceMs;
@@ -186,6 +210,11 @@ export class RemotePolicy {
         const v = verifyEnvelope(raw, this.publicKey, { graceMs: this.graceMs });
         if (!v.ok) { this._emit('policy.rejected', { why: v.reason }); return this.document; }
         doc = v.policy;
+      } else if (this._needsSignature && !this.allowUnsigned) {
+        // Unreachable via the constructor, which refuses this combination.
+        // Kept because the field is public and a caller may clear it.
+        this._emit('policy.rejected', { why: 'no signing key configured' });
+        return this.document;
       }
       if (!isUsable(doc)) { this._emit('policy.rejected', { why: 'document not usable' }); return this.document; }
 

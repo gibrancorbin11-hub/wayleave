@@ -95,6 +95,31 @@ function sigBase(components, ctx, paramsRaw) {
   return Buffer.from(lines.join('\n'));
 }
 
+/**
+ * Does `path` fall under `prefix`?
+ *
+ * Not `startsWith`. A raw prefix test makes "/api" match "/apiv2" and
+ * "/api-internal", which is wrong in both directions and dangerous in one:
+ *
+ *   pricedPaths { "/api": 0.05 }     charges for /apiv2, which the operator
+ *                                    never priced
+ *   rules { bot: [["/public", true]] }  ALLOWS /public-admin, which the
+ *                                    operator never opened
+ *
+ * The second is the one that matters. An over-matching deny is merely
+ * annoying; an over-matching allow is a hole.
+ *
+ * A prefix matches the path itself or anything beneath its boundary, and a
+ * trailing slash on the prefix changes nothing — "/api" and "/api/" mean the
+ * same thing, because operators write both and neither should surprise them.
+ */
+export function pathUnder(path, prefix) {
+  if (typeof path !== 'string' || typeof prefix !== 'string') return false;
+  if (prefix === '' || prefix === '/') return true;
+  const base = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  return path === base || path.startsWith(base + '/');
+}
+
 export function buildParams(keyid, created, expires, nonce = null) {
   return `("@authority" "signature-agent");created=${created};` +
          `keyid="${keyid}";alg="ed25519";expires=${expires};tag="web-bot-auth"` +
@@ -631,7 +656,7 @@ export class Wayleave {
    */
   _preDecide(req, lane, ident, now, paymentProof, c) {
     for (const [prefix, allow] of this.rules[lane] || []) {
-      if (req.path.startsWith(prefix)) {
+      if (pathUnder(req.path, prefix)) {
         if (!allow) return { status: 403, why: `${lane} denied on ${prefix}` };
         break;
       }
@@ -659,7 +684,7 @@ export class Wayleave {
       : lane === LANES.HUMAN;
     if (!freeOnPriced) {
       for (const [prefix, price] of Object.entries(this.pricedPaths)) {
-        if (req.path.startsWith(prefix)) {
+        if (pathUnder(req.path, prefix)) {
           const challenge = { scheme: 'x402', price_usd: price, resource: prefix };
           if (!paymentProof) {
             const why = this.strictPricedPaths && lane === LANES.HUMAN
