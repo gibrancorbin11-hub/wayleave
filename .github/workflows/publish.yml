@@ -1,73 +1,69 @@
-name: Publish to npm
+# Publish wayleave to npm from a tag, with no token anywhere.
+#
+# npm trusted publishing exchanges GitHub's OIDC identity for a short-lived,
+# single-use credential. Nothing long-lived is stored in this repository, in
+# Actions secrets, or on anybody's laptop — which is the point. The status
+# report recorded that 2FA on this account was downgraded to auth-only in
+# order to publish at all, so a leaked token could put a malicious `wayleave`
+# into customers' request paths. This removes the token rather than guarding
+# it better.
+#
+# Before the first run, on npmjs.com → the `wayleave` package → Settings →
+# Trusted Publisher, add:
+#     repository   gibrancorbin11-hub/wayleave
+#     workflow     .github/workflows/publish.yml
+# and then turn "Require two-factor authentication or automation tokens" back
+# ON for writes. Trusted publishing satisfies it; a stolen token will not.
+#
+# To release: bump the version, commit, then
+#     git tag v0.5.4 && git push origin v0.5.4
 
-# Trusted Publishing (OIDC). No npm token, no authenticator code, nothing that
-# expires. This exists because the sendable.me npm account uses a security key
-# for 2FA and has no TOTP app — and npm's CLI has no WebAuthn publish flow, so
-# `npm publish --otp=<code>` can never succeed from a laptop. The bypass token
-# that published 0.1.2 expires 2026-08-05; this replaces it permanently.
-#
-# One-time setup on npmjs.com (package -> Settings -> Trusted Publisher):
-#   Organization or user: gibrancorbin11-hub
-#   Repository:           wayleave
-#   Workflow filename:    publish.yml
-#   Environment:          (leave blank)
-#
-# To ship a version:
-#   1. bump "version" in package.json and add a CHANGELOG entry
-#   2. git commit && git push
-#   3. git tag v0.1.3 && git push origin v0.1.3
-# The tag push runs the tests and publishes only if they pass.
+name: publish
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    tags: ['v*']
 
 permissions:
   contents: read
-  id-token: write # required — this is what mints the OIDC token npm verifies
+  id-token: write          # the OIDC identity npm exchanges. Nothing else.
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 22
+          registry-url: https://registry.npmjs.org
 
-      # Trusted publishing requires npm >= 11.5.1. Ubuntu runners ship older.
-      - name: Upgrade npm
-        run: npm install -g npm@latest
+      # npm 11.5.1+ is what knows how to do the OIDC exchange.
+      - run: npm install -g npm@latest
 
-      - name: Show versions
-        run: node --version && npm --version
-
-      # Zero dependencies, so there is nothing to install — just run the suite.
-      # A failing test must block the publish.
+      # The gate is zero-dependency, so there is nothing to install and
+      # nothing that could run an install script on the way to a publish.
       - name: Test
-        run: npm test
+        run: node --test *.test.js
 
-      # Only meaningful on a tag push. On workflow_dispatch GITHUB_REF_NAME is
-      # the branch ("main"), so this would always fail and mask the real result.
-      - name: Verify tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/')
+      # The tag and package.json must agree, or a v0.5.4 tag quietly
+      # republishes whatever version happens to be in the file.
+      - name: Tag matches package.json
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG="$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "Tag v$TAG does not match package.json version $PKG" >&2
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p 'require("./package.json").version')"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $tag does not match package.json $pkg"
             exit 1
           fi
-          echo "Tag and package.json agree on $PKG"
 
-      # --provenance emits a signed attestation linking this tarball to the
-      # exact commit and workflow that built it. npm renders it as a
-      # "Built and signed on GitHub Actions" badge. Requires id-token: write,
-      # a public repo, and the repository field in package.json to match.
+      # A runtime dependency would break the headline claim on the landing
+      # page, so it fails the release rather than shipping quietly.
+      - name: Still zero dependencies
+        run: |
+          deps="$(node -p 'JSON.stringify(require("./package.json").dependencies || {})')"
+          [ "$deps" = "{}" ] || { echo "runtime dependencies present: $deps"; exit 1; }
+
       - name: Publish
-        run: npm publish --access public --provenance
+        run: npm publish
