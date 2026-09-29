@@ -377,6 +377,18 @@ export function classify(
   }
 ): Classification;
 
+/**
+ * The path a request is for, whichever property the framework used.
+ *
+ * Express sets `req.path`; Node's own server and most other frameworks set
+ * `req.url` with the query still attached. Query and fragment are removed,
+ * so "/api?x=1" and "/api" are the same route.
+ */
+export function requestPath(req: { path?: string; url?: string } | null | undefined): string;
+
+/** True when `path` is `prefix` or lies beneath its boundary. Query-insensitive. */
+export function pathUnder(path: string, prefix: string): boolean;
+
 export class Wayleave {
   constructor(opts?: WayleaveOptions);
   /**

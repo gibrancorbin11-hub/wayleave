@@ -113,8 +113,34 @@ function sigBase(components, ctx, paramsRaw) {
  * trailing slash on the prefix changes nothing — "/api" and "/api/" mean the
  * same thing, because operators write both and neither should surprise them.
  */
+/**
+ * The path to decide about, whatever shape the caller's request object has.
+ *
+ * Express puts a query-free path on `req.path`. Node's own http server -- and
+ * every framework that hands you its raw request -- puts "/api/x?y=1" on
+ * `req.url` and nothing on `req.path`. `handle()` read `req.path` alone, so a
+ * caller outside Express passed `undefined` into the matcher, matched no
+ * priced prefix and no rule, and was allowed through. Silently: a 200 on a
+ * route the operator had priced, with a receipt recording no path at all.
+ *
+ * The query and fragment come off here for the same reason they come off in
+ * pathUnder: "/api?x=1" must not be a different route from "/api", and a
+ * query string recorded in a receipt is user data we never asked for.
+ */
+export function requestPath(req) {
+  const raw = (req && (req.path ?? req.url)) ?? '';
+  return String(raw).split('#')[0].split('?')[0] || '/';
+}
+
 export function pathUnder(path, prefix) {
   if (typeof path !== 'string' || typeof prefix !== 'string') return false;
+  /* Strip the query before comparing. `handle()` takes whatever the caller
+     passes, and callers pass `req.url` as often as `req.path` — so "/api?x=1"
+     arrived here as a literal and matched no prefix at all. In 0.5.2 that
+     meant appending "?x=1" walked straight past a priced route: the boundary
+     fix was bypassable by anyone who noticed. Also cut the fragment, which a
+     server should never see but a hand-built request can carry. */
+  path = path.split('#')[0].split('?')[0];
   if (prefix === '' || prefix === '/') return true;
   const base = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
   return path === base || path.startsWith(base + '/');
@@ -264,10 +290,25 @@ export function verifySignature(h, authority, directories,
 
 // ── classification ──────────────────────────────────────────────────────
 
-const AGENT_UA = [
+/* Named agents, not the word "agent".
+ *
+ * `/agent/` matched "MyAgencyCRM" and "UserAgent/1.0" — ordinary software with
+ * an unlucky name, sorted into the lane that gets charged. Guessing from a
+ * substring is the opposite of what this library is for: identity comes from
+ * signature math, and the UA list is only a declared-intent hint for the
+ * crawlers that announce themselves honestly.
+ *
+ * Exported so an operator can add the one their traffic actually shows. */
+export const AGENT_UA = [
   /gptbot/, /oai-searchbot/, /chatgpt-user/, /claude(?:bot|-user|-searchbot)?/,
-  /perplexitybot/, /google-extended/, /bingbot/, /anthropic/, /openai/,
-  /agent/, /autonomous/, /\bbot\b/,
+  /perplexitybot/, /google-extended/, /bingbot/, /duckassistbot/, /applebot-extended/,
+  /meta-externalagent/, /amazonbot/, /youbot/, /ccbot/, /cohere-ai/, /diffbot/,
+  /anthropic/, /openai/, /autonomous[- ]agent/,
+  /* `bot` ending a word, not `\bbot\b`. Agents name themselves by suffix —
+     GPTBot, ClaudeBot, PerplexityBot, ShopBot — and a leading word boundary
+     misses every one of them. A trailing boundary still refuses `bottle`,
+     because the `t` that follows is a word character. */
+  /bot\b/, /crawler\b/, /spider\b/,
 ];
 const AUTOMATION_TELLS = [
   ['headlesschrome', 'headless browser UA'],
@@ -482,7 +523,36 @@ export class Wayleave {
     // accept-language header is the whole bypass. Strict mode inverts the
     // burden on priced routes only: nothing crosses free without positive
     // evidence, which is a verified signature or confirmHuman saying yes.
-    this.strictPricedPaths = opts.strictPricedPaths === true;
+    /* Item 3. The human lane means "nothing tripped", not "verified person":
+       a User-Agent and an Accept-Language are enough to reach it, and both are
+       one line in any scraper. With strict mode off, every priced route was
+       free to anything that looked like a browser — which is the whole product
+       leaking.
+
+       So it now defaults ON wherever there is something to protect. Turning it
+       off stays possible and says so once at startup, because an operator who
+       chooses it should know what they chose. */
+    this.strictPricedPaths = opts.strictPricedPaths === undefined
+      ? Object.keys(this.pricedPaths).length > 0
+      : opts.strictPricedPaths === true;
+    const priced = Object.keys(this.pricedPaths).length > 0;
+    const warn = this._onWarn = opts.onWarn || console.warn;
+    if (opts.strictPricedPaths === false && priced)
+      warn('[wayleave] strictPricedPaths is off: priced routes are reachable free ' +
+           'by any client that looks like a browser. Pass confirmHuman() to charge ' +
+           'agents while letting your signed-in people through.');
+    /* The other half of item 3, and the one that can hurt a real person.
+       
+       Strict mode says the human lane is not enough on a priced route. If the
+       operator has not also said how to recognise their own people, then
+       nobody qualifies — and a customer reading an article gets a 402. The law
+       this library is built on is that people never pay and never get blocked,
+       so the combination that breaks it does not pass silently. */
+    if (this.strictPricedPaths && priced && typeof opts.confirmHuman !== 'function')
+      warn('[wayleave] priced routes are strict but no confirmHuman() was given, ' +
+           'so signed-in people will be asked to pay like agents. Pass ' +
+           'confirmHuman: (req) => Boolean(yourSession(req)), or set ' +
+           'strictPricedPaths: false if these routes have no human visitors.');
     this.confirmHuman = opts.confirmHuman || null;
 
     // x-forwarded-for is written by the client unless a proxy you control
@@ -541,17 +611,29 @@ export class Wayleave {
 
   /** req: { method, path, authority, headers, ip } → decision */
   handle(req, now = Math.floor(Date.now() / 1000), paymentProof = '') {
-    const c = classify(req, this.directories, now,
-                       { verifyAgentIP: this.verifyAgentIP, ip: this._client(req) });
+    /* A remote policy is a signed document fetched over the network, so a
+       synchronous call cannot evaluate one. Silence here would mean an
+       operator's rules quietly not applying; say it once, loudly, rather than
+       let them believe a policy is in force that is not. */
+    if (this.policy && !this._warnedSyncPolicy) {
+      this._warnedSyncPolicy = true;
+      this._onWarn('[wayleave] handle() cannot evaluate a remote policy — verifying a ' +
+                   'signed document is asynchronous, so your policy rules are NOT being ' +
+                   'applied here. Use handleAsync(); gate.express() already does.');
+    }
+    const path = requestPath(req);
+    const r = this._withPath(req, path);
+    const c = classify(r, this.directories, now,
+                       { verifyAgentIP: this.verifyAgentIP, ip: this._client(r) });
     const { lane, agentId, evidence } = c;
-    const ident = agentId || `${lane}:${this._client(req)}`;
+    const ident = agentId || `${lane}:${this._client(r)}`;
     const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
-    const d = this._decide(req, lane, ident, now, proof, c);
+    const d = this._decide(r, lane, ident, now, proof, c);
     // v is the event schema version. A meter that outlives one release has to
     // know which shape it is reading; adding this after receipts exist in the
     // wild would mean reconciling two formats forever.
     const entry = { v: 1, idempotencyKey: `${this._instance}:${this._seq++}`,
-                    t: now, path: req.path, lane, identity: ident,
+                    t: now, path, lane, identity: ident,
                     status: d.status, why: d.why, evidence,
                     billedUsd: d.billed || 0 };
     if (d.paymentRef) entry.paymentRef = d.paymentRef;
@@ -594,15 +676,17 @@ export class Wayleave {
   }
 
   async handleAsync(req, now = Math.floor(Date.now() / 1000), paymentProof = '') {
-    const c = classify(req, this.directories, now,
-                       { verifyAgentIP: this.verifyAgentIP, ip: this._client(req) });
+    const path = requestPath(req);
+    const r = this._withPath(req, path);
+    const c = classify(r, this.directories, now,
+                       { verifyAgentIP: this.verifyAgentIP, ip: this._client(r) });
     const { lane, agentId, evidence } = c;
-    const ident = agentId || `${lane}:${this._client(req)}`;
+    const ident = agentId || `${lane}:${this._client(r)}`;
     const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
-    const fromPolicy = await this._policyDecision(req, lane, ident, c);
-    const d = fromPolicy || await this._decideAsync(req, lane, ident, now, proof, c);
+    const fromPolicy = await this._policyDecision(r, lane, ident, c);
+    const d = fromPolicy || await this._decideAsync(r, lane, ident, now, proof, c);
     const entry = { v: 1, idempotencyKey: `${this._instance}:${this._seq++}`,
-                    t: now, path: req.path, lane, identity: ident,
+                    t: now, path, lane, identity: ident,
                     status: d.status, why: d.why, evidence,
                     billedUsd: d.billed || 0 };
     if (d.paymentRef) entry.paymentRef = d.paymentRef;
@@ -776,6 +860,21 @@ export class Wayleave {
 
   /** Stop polling. Safe to call when no remote policy is configured. */
   close() { this.policy?.stop(); this.registry?.stop(); }
+
+  /**
+   * The caller's request, seen with a `path` on it.
+   *
+   * Built with Object.create so the original is never mutated and never
+   * copied: a framework's request object owns sockets, streams and getters,
+   * and cloning one is a good way to break something far from here. Reads
+   * fall through to the real request; only `path` is ours.
+   */
+  _withPath(req, path) {
+    if (!req || typeof req !== 'object' || req.path === path) return req;
+    try {
+      return Object.create(req, { path: { value: path, enumerable: true, configurable: true } });
+    } catch { return req; }
+  }
 
   /**
    * Evaluate the fetched policy for one request.

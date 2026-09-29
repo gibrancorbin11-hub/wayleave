@@ -91,3 +91,62 @@ test('even with the field cleared afterwards, a fetch will not apply an unsigned
   assert.ok(events.some(e => /rejected/.test(e.type || '')),
     'and it says why rather than failing silently');
 });
+
+// ══ 0.5.3 ═══════════════════════════════════════════════════════════════
+// Three more from SPEC-0.5.2-review-fixes.md. The first is the one that
+// mattered most: it defeated the fix shipped in 0.5.2.
+
+test('a query string cannot walk past a priced route', () => {
+  const gate = new Wayleave({ pricedPaths: { '/api': 0.05 }, strictPricedPaths: false });
+  const bot = (path) => gate.handle(
+    { method: 'GET', path, authority: 'x.test', headers: { 'user-agent': 'python-requests/2.31.0' } }).status;
+
+  assert.equal(bot('/api'), 402);
+  assert.equal(bot('/api?x=1'), 402,
+    'in 0.5.2 appending ?x=1 was free: the boundary fix was bypassable');
+  assert.equal(bot('/api/data?y=2'), 402);
+  assert.equal(bot('/api#frag'), 402);
+  assert.equal(bot('/apiv2?z=1'), 200, 'and it still does not over-match');
+});
+
+test('pricing a route turns strict mode on', () => {
+  const browser = { 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+                    accept: 'text/html', 'accept-language': 'en-US' };
+  const ask = (gate) => gate.handle(
+    { method: 'GET', path: '/api/data', authority: 'x.test', headers: browser }).status;
+
+  assert.equal(ask(new Wayleave({ pricedPaths: { '/api': 0.05 }, onWarn() {} })), 402,
+    'two headers used to buy the whole product');
+  assert.equal(ask(new Wayleave({ pricedPaths: { '/api': 0.05 }, strictPricedPaths: false, onWarn() {} })), 200,
+    'the old behaviour is still reachable, deliberately');
+  assert.equal(
+    new Wayleave({ onWarn() {} }).handle(
+      { method: 'GET', path: '/x', authority: 'x.test', headers: browser }).status, 200,
+    'and nothing changes where there is nothing priced');
+});
+
+test('strict mode with no confirmHuman warns, because people would be charged', () => {
+  const warnings = [];
+  new Wayleave({ pricedPaths: { '/api': 0.05 }, onWarn: (m) => warnings.push(m) });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /confirmHuman/,
+    'people never pay is the law; the combination that breaks it must not be silent');
+
+  const quiet = [];
+  new Wayleave({ pricedPaths: { '/api': 0.05 }, confirmHuman: () => false,
+                 onWarn: (m) => quiet.push(m) });
+  assert.equal(quiet.length, 0);
+});
+
+test('an agent is a named agent, not any UA containing "agent"', () => {
+  const gate = new Wayleave({});
+  const lane = (ua) => gate.handle(
+    { method: 'GET', path: '/x', authority: 'x.test',
+      headers: { 'user-agent': ua, accept: 'text/html', 'accept-language': 'en-US' } }).lane;
+
+  for (const ua of ['MyAgencyCRM/2.1', 'UserAgent/1.0', 'BottleRocket/3'])
+    assert.equal(lane(ua), 'human', `${ua} is ordinary software with an unlucky name`);
+
+  for (const ua of ['GPTBot/1.0', 'ClaudeBot/1.0', 'PerplexityBot/1.0', 'ShopBot/2.0'])
+    assert.equal(lane(ua), 'declared_agent', `${ua} names itself; agents use the -Bot suffix`);
+});

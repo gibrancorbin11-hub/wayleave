@@ -318,24 +318,48 @@ test('suspected bot on priced path → 402 (sneaky automation pays too)', () => 
   assert.equal(r.status, 402);
 });
 
-test('human on priced path → free 200', () => {
-  const r = new Wayleave(OPTS()).handle(req('/api/premium/comps'), NOW);
+test('human on priced path → free 200, once the app can recognise its people', () => {
+  // 0.5.3: pricing a route turns strict mode on, so the human LANE alone no
+  // longer buys passage — the app has to say who its people are. With that
+  // said, a person is free, which is the law this library exists to keep.
+  const r = new Wayleave({ ...OPTS(), confirmHuman: () => true })
+    .handle(req('/api/premium/comps'), NOW);
   assert.equal(r.status, 200); assert.equal(r.billed, undefined);
 });
 
 // ── strictPricedPaths ───────────────────────────────────────────────────
-// The human lane is reached by failing to look like automation, so by default
-// it is spoofable with two headers. That is a documented property, not a
-// secret: the test below asserts the bypass works exactly as described, and
-// the rest assert that strict mode is the answer to it.
+// The human lane is reached by FAILING to look like automation, so it is
+// spoofable with two headers. Until 0.5.3 that was the default and the bypass
+// was merely documented; a documented hole is still a hole, and it was the
+// whole product leaking. Pricing a route now turns strict mode on.
 
-test('DEFAULT: two headers buy free passage on a priced route', () => {
+test('DEFAULT: two headers no longer buy free passage on a priced route', () => {
   const bot = req('/api/premium/comps', {
     ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0',
     lang: 'en-US,en;q=0.9' });
   const r = new Wayleave(OPTS()).handle(bot, NOW);
-  assert.equal(r.lane, LANES.HUMAN, 'a browser UA is all the lane requires');
-  assert.equal(r.status, 200, 'this is the bypass the README discloses');
+  assert.equal(r.lane, LANES.HUMAN, 'the lane is still reached — that has not changed');
+  assert.equal(r.status, 402,
+    'but the lane alone no longer pays the toll: that was the bypass');
+});
+
+test('the old default is still available, and says so out loud', () => {
+  const warnings = [];
+  const gate = new Wayleave({ ...OPTS(), strictPricedPaths: false,
+                              onWarn: (m) => warnings.push(m) });
+  const bot = req('/api/premium/comps', {
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0',
+    lang: 'en-US,en;q=0.9' });
+  assert.equal(gate.handle(bot, NOW).status, 200, 'opting out restores the old behaviour');
+  assert.equal(warnings.length, 1, 'and an operator who opts out is told what they chose');
+  assert.match(warnings[0], /reachable free/);
+});
+
+test('strict pricing with no way to recognise a person warns, because people would pay', () => {
+  const warnings = [];
+  new Wayleave({ ...OPTS(), onWarn: (m) => warnings.push(m) });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /confirmHuman/);
 });
 
 test('STRICT: the same spoofed request is asked to pay', () => {

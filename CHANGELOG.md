@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.5.3 — unreleased
+
+### handle() did not enforce anything outside Express
+
+`gate.handle(req)` is documented as the escape hatch for "any framework". It
+read `req.path`, which is an Express property. Node's own http server,
+Fastify, Hono and everything that hands you a raw request put the path on
+`req.url`, with the query still attached.
+
+So outside Express, `req.path` was `undefined`: no priced prefix matched, no
+rule matched, and the answer was `200` — on a route the operator had priced.
+The receipt recorded no path either. No attacker was required; the developer
+simply wasn't using Express.
+
+`handle()` and `handleAsync()` now resolve the path through `requestPath()`,
+which prefers `req.path`, falls back to `req.url`, and strips query and
+fragment. The caller's request object is never written to — the path is
+supplied through a prototype view, so sockets, streams and getters are left
+alone. A query string no longer reaches the receipt, which was storing user
+data nobody asked us to keep.
+
+`requestPath()` and `pathUnder()` are exported and typed.
+
+### handle() now says when a remote policy is not being applied
+
+A remote policy is a signed document fetched over the network, so a
+synchronous call cannot evaluate one. That is inherent. But an operator who
+configured a policy and calls `handle()` is running with no policy at all and
+no way to find out. It now warns once, naming `handleAsync()`. `express()`
+already uses the async path.
+
+### Behaviour change from 0.5.2, stated plainly
+
+- Query and fragment are stripped before a path is matched, so `/api?x=1` no
+  longer walks past a priced `/api`. In 0.5.2 appending a query string was a
+  bypass for anyone who noticed.
+- Pricing a route turns `strictPricedPaths` on. Two headers no longer buy the
+  product. Warned both ways: opting out says what it costs you, and leaving it
+  on without `confirmHuman()` warns that your own signed-in people will be
+  charged — people never paying is the law here, so the combination that
+  breaks it is never silent.
+- An agent is a *named* agent: `bot` matches as a word suffix, so `GPTBot` and
+  `ShopBot` are agents and `UserAgent/1.0` is not.
+
+184 tests.
+
+## 0.5.2
+
+Boundary fix for prefix matching, and the security review's first two items.
+Six of the review's eight items were not done, and one of the six defeated a
+fix that did ship — see 0.5.3 above. Do not treat 0.5.2 as complete.
+
 ## 0.5.1
 
 ### The manifest the README promised was never served through express()
@@ -452,3 +504,42 @@ trust end to end.
 
 Unaffected: `new RemotePolicy({ apiKey })`. That fetches from the customer's
 own meter over TLS with their key, which is an authenticated channel.
+
+## 0.5.3
+
+0.5.2 shipped two of the eight fixes the architecture review asked for, and
+one of the six left behind defeated a fix that did ship.
+
+**A query string walked past a priced route.** `pathUnder` compared the raw
+string it was given, and `handle()` takes whatever the caller passes — often
+`req.url`, which carries `?x=1`. So `/api` was 402 and `/api?x=1` was free.
+The boundary fix in 0.5.2 was bypassable by anyone who noticed. Query and
+fragment are now stripped before matching.
+
+**Pricing a route turns on strict mode.** The human lane is reached by failing
+to look like automation, so a User-Agent and an Accept-Language were enough to
+read priced content for nothing. That was documented rather than fixed, and a
+documented hole is still a hole. `strictPricedPaths` now defaults to true
+wherever `pricedPaths` is non-empty.
+
+  Two warnings come with it, because this one can hurt in both directions.
+  Turning strict off says what you chose. Leaving it on **without**
+  `confirmHuman()` also warns: with no way to recognise your own people, your
+  signed-in customers get asked to pay like agents, and people never paying is
+  the law this library exists to keep. Pass
+  `confirmHuman: (req) => Boolean(yourSession(req))`.
+
+**An agent is a named agent.** The classifier matched the substring `agent`,
+so "MyAgencyCRM" and "UserAgent/1.0" were sorted into the lane that gets
+charged. Replaced with named tokens, exported as `AGENT_UA` so you can add
+whatever your traffic actually shows. `bot` now matches as a word *suffix* —
+agents name themselves GPTBot, ClaudeBot, ShopBot, and a leading word boundary
+missed every one of them while still letting "BottleRocket" through as human.
+
+Behaviour changes, stated plainly: a customer relying on over-matching prices
+fewer routes; a customer serving human pages from a priced prefix must pass
+`confirmHuman` or set `strictPricedPaths: false`.
+
+Still outstanding from the review: item 4 (sync `handle()` does not evaluate
+policy), item 5 (policy re-validated per request), item 7 (one shared policy
+engine). None is a security hole; all are queued.
