@@ -87,19 +87,87 @@ test('requestPath survives the shapes a request object actually arrives in', () 
    an operator who configured a policy and calls handle() is running with no
    policy at all, and has no way to know. */
 
-test('handle() says out loud that it cannot apply a remote policy', () => {
+/* ── one policy, both paths ───────────────────────────────────────────────
+   handle() used to skip policy evaluation entirely: the same signed document
+   enforced through express() and was ignored through handle(), so one policy
+   behaved as two. Everything that needs no I/O is decided on both paths now,
+   and the one thing that cannot be — a quota rule, which means consulting a
+   store over the network — refuses rather than passes. Passing it would let
+   through exactly the traffic the operator metered. */
+
+const withPolicy = (rules, over = {}) => {
+  const gate = new Wayleave({ onWarn: over.onWarn || (() => {}), ...over });
+  // Stand in for a fetched, verified document.
+  gate.policy = { document: { version: 'v1', default: 'allow', rules }, tenant: 'self' };
+  return gate;
+};
+
+test('a deny rule answers 403 on both paths, with the same rule id', async () => {
+  const rules = [{ id: 'block-bots', lane: 'declared_agent', route: '/api', action: 'deny' }];
+  const req = { method: 'GET', url: '/api/data', headers: AGENT };
+
+  const sync = withPolicy(rules).handle(req);
+  const async_ = await withPolicy(rules).handleAsync(req);
+
+  assert.equal(sync.status, 403);
+  assert.equal(async_.status, 403);
+  assert.equal(sync.ruleId, 'block-bots');
+  assert.equal(async_.ruleId, 'block-bots', 'the same document must name the same rule');
+  assert.equal(sync.headers['x-wayleave-rule'], async_.headers['x-wayleave-rule']);
+});
+
+test('a pay rule answers 402 on both paths, with the same price', async () => {
+  const rules = [{ id: 'priced', route: '/api', action: 'pay', priceMicros: 50_000, rail: 'x402' }];
+  const req = { method: 'GET', url: '/api/data', headers: AGENT };
+
+  const sync = withPolicy(rules).handle(req);
+  const async_ = await withPolicy(rules).handleAsync(req);
+
+  assert.equal(sync.status, 402);
+  assert.equal(async_.status, 402);
+  assert.equal(sync.challenge.price_usd, 0.05);
+  assert.equal(async_.challenge.price_usd, 0.05);
+  assert.equal(sync.ruleId, async_.ruleId);
+});
+
+test('the rule that decided reaches the meter from both paths', async () => {
+  const rules = [{ id: 'block-bots', lane: 'declared_agent', route: '/api', action: 'deny' }];
+  const req = { method: 'GET', url: '/api/data', headers: AGENT };
+
+  const a = [], b = [];
+  withPolicy(rules, { sink: { emit: e => a.push(e), flush: () => {} } }).handle(req);
+  await withPolicy(rules, { sink: { emit: e => b.push(e), flush: () => {} } }).handleAsync(req);
+
+  assert.equal(a[0].ruleId, 'block-bots');
+  assert.equal(b[0].ruleId, 'block-bots',
+    'a denial arriving at the meter with no rule on it cannot answer "which rule refused this?"');
+});
+
+test('a quota rule on the sync path refuses, and says which call to use', () => {
   const said = [];
-  const gate = new Wayleave({
-    policy: { url: 'https://example.test/policy.json', publicKey: 'x'.repeat(43) },
-    onWarn: m => said.push(m),
-  });
-  gate.handle({ method: 'GET', url: '/api', headers: AGENT });
-  assert.equal(said.length, 1, 'exactly one warning');
-  assert.match(said[0], /NOT being\s+applied/, said[0] || '(nothing was said)');
-  gate.handle({ method: 'GET', url: '/api', headers: AGENT });
-  gate.handle({ method: 'GET', url: '/other', headers: AGENT });
+  const gate = withPolicy(
+    [{ id: 'per-agent', route: '/api', action: 'quota', quota: { limit: 10, windowSeconds: 60 } }],
+    { onWarn: m => said.push(m) });
+
+  const d = gate.handle({ method: 'GET', url: '/api/data', headers: AGENT });
+  assert.equal(d.status, 403, 'passing a metered rule is worse than refusing it');
+  assert.equal(d.why, 'quota rule requires handleAsync');
+  assert.equal(d.ruleId, 'per-agent');
+  assert.equal(said.length, 1);
+  assert.match(said[0], /handleAsync/);
+
+  gate.handle({ method: 'GET', url: '/api/data', headers: AGENT });
   assert.equal(said.length, 1, 'said once, not once per request');
-  gate.close();
+});
+
+test('a rule that does not match leaves the ordinary decision alone', () => {
+  const gate = withPolicy([{ id: 'other', route: '/admin', action: 'deny' }]);
+  assert.equal(gate.handle({ method: 'GET', url: '/api/data', headers: AGENT }).status, 200);
+});
+
+test('no policy document, no policy decision', () => {
+  const gate = new Wayleave({ onWarn: () => {} });
+  assert.equal(gate.handle({ method: 'GET', url: '/api/data', headers: AGENT }).status, 200);
 });
 
 test('no policy configured, no policy warning — the common case stays quiet', () => {

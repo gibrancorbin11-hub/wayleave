@@ -20,6 +20,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { verify as edVerify, createPublicKey } from 'node:crypto';
+import { validatePolicy } from './policy-engine.js';
 
 const DEFAULT_ENDPOINT = 'https://meter.wayleave.dev';
 const DEFAULT_REFRESH_MS = 5 * 60_000;
@@ -216,7 +217,13 @@ export class RemotePolicy {
         this._emit('policy.rejected', { why: 'no signing key configured' });
         return this.document;
       }
-      if (!isUsable(doc)) { this._emit('policy.rejected', { why: 'document not usable' }); return this.document; }
+      const check = usable(doc);
+      if (!check.ok) {
+        // The last good policy stays in force. A bad publish must not
+        // silently disarm a gate that was working a second ago.
+        this._emit('policy.rejected', { why: check.why, version: doc?.version ?? null });
+        return this.document;
+      }
 
       this.document = doc;
       this.etag = res.headers.get?.('etag') ?? null;
@@ -237,7 +244,12 @@ export class RemotePolicy {
   async _loadCache() {
     try {
       const raw = JSON.parse(await readFile(this.cachePath, 'utf8'));
-      if (raw?.url === this.url && isUsable(raw.document)) {
+      /* The cache is a file on disk, which means it is a file somebody or
+         something else can edit. It gets the same full validation a freshly
+         fetched document gets -- and it has to, because this is the copy that
+         enforces on the very first request after a restart, before any fetch
+         has completed. */
+      if (raw?.url === this.url && usable(raw.document).ok) {
         this.document = raw.document;
         this.etag = null;   // revalidate against the server, not against disk
         this._emit('policy.cache.loaded', { version: raw.document.version });
@@ -259,9 +271,26 @@ export class RemotePolicy {
 }
 
 /** A document we can act on: right shape, explicit default, sane rule count. */
-function isUsable(doc) {
-  return !!doc && Array.isArray(doc.rules) && doc.rules.length <= 100
-      && (doc.default === 'allow' || doc.default === 'deny');
+/**
+ * Whether a fetched document may become the live policy.
+ *
+ * Full schema validation, here, once — not the shallow shape check this used
+ * to be. Two things follow from doing it at the door rather than per request:
+ * a document with a malformed rule never becomes live at all (the last good
+ * copy stays, which is the whole point of caching one), and the evaluator
+ * does no validation work on the hot path because the document it is handed
+ * has already passed.
+ *
+ * Returns a reason rather than a boolean, because "document not usable" told
+ * an operator nothing about which rule was wrong.
+ */
+function usable(doc) {
+  try {
+    validatePolicy(doc);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, why: err.message };
+  }
 }
 
 function defaultCachePath() {

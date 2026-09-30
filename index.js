@@ -23,7 +23,7 @@ import { createPublicKey, verify as edVerify, sign as edSign,
 // nothing measurable and makes `meter: { apiKey }` work without ceremony.
 import { MeterSink } from './meter.js';
 import { RemotePolicy } from './policy.js';
-import { evaluatePolicy } from './policy-engine.js';
+import { evaluatePolicy, evaluatePolicySync } from './policy-engine.js';
 import { Registry } from './registry.js';
 import { ManifestServer, MANIFEST_PATHS, originFor, paymentRequirementsFor } from './manifest.js';
 
@@ -611,16 +611,6 @@ export class Wayleave {
 
   /** req: { method, path, authority, headers, ip } → decision */
   handle(req, now = Math.floor(Date.now() / 1000), paymentProof = '') {
-    /* A remote policy is a signed document fetched over the network, so a
-       synchronous call cannot evaluate one. Silence here would mean an
-       operator's rules quietly not applying; say it once, loudly, rather than
-       let them believe a policy is in force that is not. */
-    if (this.policy && !this._warnedSyncPolicy) {
-      this._warnedSyncPolicy = true;
-      this._onWarn('[wayleave] handle() cannot evaluate a remote policy — verifying a ' +
-                   'signed document is asynchronous, so your policy rules are NOT being ' +
-                   'applied here. Use handleAsync(); gate.express() already does.');
-    }
     const path = requestPath(req);
     const r = this._withPath(req, path);
     const c = classify(r, this.directories, now,
@@ -628,7 +618,11 @@ export class Wayleave {
     const { lane, agentId, evidence } = c;
     const ident = agentId || `${lane}:${this._client(r)}`;
     const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
-    const d = this._decide(r, lane, ident, now, proof, c);
+    /* The same policy the async path enforces, evaluated here for every rule
+       that needs no I/O. Before this, `handle()` skipped policy entirely and
+       one document behaved as two: enforced through express(), ignored here. */
+    const fromPolicy = this._policyDecisionSync(r, lane, ident, c);
+    const d = fromPolicy || this._decide(r, lane, ident, now, proof, c);
     // v is the event schema version. A meter that outlives one release has to
     // know which shape it is reading; adding this after receipts exist in the
     // wild would mean reconciling two formats forever.
@@ -690,6 +684,10 @@ export class Wayleave {
                     status: d.status, why: d.why, evidence,
                     billedUsd: d.billed || 0 };
     if (d.paymentRef) entry.paymentRef = d.paymentRef;
+    // The sync path recorded this and the async path did not, so a policy
+    // denial arrived at the meter with no rule on it — unanswerable when the
+    // operator asks which rule refused a request.
+    if (d.ruleId) entry.ruleId = d.ruleId;
     this.sink.emit(entry);
     return { lane, identity: ident, ...d, evidence };
   }
@@ -887,24 +885,74 @@ export class Wayleave {
    * Returns null when there is no policy, or when it says allow -- in both
    * cases the gate's local configuration decides, as it always did.
    */
+  /**
+   * The policy decision that needs no network.
+   *
+   * Everything the async path does, minus quota — consuming from a quota
+   * store is I/O and cannot happen inside a synchronous call. A quota rule
+   * reached here is NOT passed over: passing it would let through exactly the
+   * traffic the operator metered, which is worse than refusing. It answers
+   * the way the async path answers when the store cannot be consulted, and
+   * says which call to use instead.
+   */
+  _policyDecisionSync(req, lane, ident, c) {
+    const policy = this.policy?.document;
+    if (!policy) return null;
+    let d;
+    try {
+      d = evaluatePolicySync(policy, {
+        tenant: this.policy.tenant || 'self',
+        path: req.path, method: req.method, lane,
+        identity: this._policyIdentity(c), anonymousBucket: ident,
+      });
+    } catch (err) {
+      this.onEvent({ type: 'policy.evaluate.failed', error: err?.message });
+      return null;                                    // traffic fails open
+    }
+    if (d.action === 'needs-async') {
+      if (!this._warnedSyncQuota) {
+        this._warnedSyncQuota = true;
+        this._onWarn('[wayleave] a quota rule was reached through handle(), which cannot ' +
+                     'consult a quota store. The request was refused rather than passed. ' +
+                     'Use handleAsync(); gate.express() already does.');
+      }
+      return { status: 403, why: 'quota rule requires handleAsync', ruleId: d.ruleId,
+               headers: { 'x-wayleave-rule': String(d.ruleId) } };
+    }
+    return this._fromPolicyAction(d, req);
+  }
+
+  /** The identity shape the engine expects, from a classification. */
+  _policyIdentity(c) {
+    return c?.agentId && c.lane === 'verified_agent'
+      ? { verified: true, subject: c.agentId, operator: c.operator || undefined }
+      : { verified: false };
+  }
+
   async _policyDecision(req, lane, ident, c) {
     const policy = this.policy?.document;
     if (!policy) return null;
-    const identity = c?.agentId && c.lane === 'verified_agent'
-      ? { verified: true, subject: c.agentId, operator: c.operator || undefined }
-      : { verified: false };
     let d;
     try {
       d = await evaluatePolicy(policy, {
         tenant: this.policy.tenant || 'self',
         path: req.path, method: req.method, lane,
-        identity, anonymousBucket: ident,
+        identity: this._policyIdentity(c), anonymousBucket: ident,
       }, { quotaStore: this.quotaStore });
     } catch (err) {
       // A policy we cannot evaluate must not break the request. Traffic fails open.
       this.onEvent({ type: 'policy.evaluate.failed', error: err?.message });
       return null;
     }
+    return this._fromPolicyAction(d, req);
+  }
+
+  /**
+   * One translation from an engine action to a gate decision, used by both
+   * paths. Two copies of this is how a deny becomes a 403 on one path and a
+   * 429 on the other for the same rule.
+   */
+  _fromPolicyAction(d, req) {
     if (d.action === 'allow') return null;
     if (d.action === 'deny')
       return { status: 403, why: d.reason || `denied by rule ${d.ruleId || 'default'}`,

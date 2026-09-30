@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.5.4
+
+### handle() ignored your policy
+
+`handle()` contained no policy evaluation at all. The same signed document
+enforced through `express()` and was skipped through `handle()`, so one
+policy behaved as two depending on which call you made.
+
+Everything that needs no I/O is now decided on both paths — allow, deny,
+pay, and the default — through one matcher and one translation from engine
+action to gate decision. Two copies of "does this rule apply" is how a sync
+path and an async path quietly begin enforcing different documents.
+
+A quota rule is the exception, because consuming from a quota store is a
+network call. It is refused rather than passed: passing it would let through
+exactly the traffic the operator metered. The refusal says `quota rule
+requires handleAsync`, and warns once with the call to use instead.
+
+Also: `handleAsync()` never recorded the deciding rule on the meter event,
+so a policy denial arrived with no rule on it and "which rule refused this
+request?" had no answer. The sync path had always recorded it.
+
+### The policy was re-validated on every request
+
+`evaluatePolicy` ran full schema validation per crossing. It now happens once,
+when the document arrives — and a document that fails is rejected at the door
+with the reason, leaving the last good policy in force rather than replacing
+it with nothing. The on-disk cache gets the same treatment, because it is the
+copy that enforces on the first request after a restart.
+
+A caller passing an unchecked document still gets it checked. The hot path
+does no schema work at all.
+
+### New: `wayleave/policy-engine`
+
+The evaluator is exported on its own so the Wayleave meter can import it
+instead of keeping a second copy in step by test. Same file, one source.
+
+
 ## 0.5.3 — unreleased
 
 ### handle() did not enforce anything outside Express
