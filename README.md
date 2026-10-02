@@ -64,9 +64,10 @@ the same way:
 | Cloudflare Workers | [`@wayleave/cloudflare`](https://www.npmjs.com/package/@wayleave/cloudflare) |
 | Vercel middleware | [`@wayleave/vercel`](https://www.npmjs.com/package/@wayleave/vercel) |
 | Supabase Edge Functions | [`@wayleave/supabase`](https://www.npmjs.com/package/@wayleave/supabase) |
+| Netlify Edge Functions | [`@wayleave/netlify`](https://www.npmjs.com/package/@wayleave/netlify) |
 | An MCP server | [`@wayleave/mcp`](https://www.npmjs.com/package/@wayleave/mcp) |
 
-All three HTTP adapters default to observe mode and fail open, exactly as this
+All four HTTP adapters default to observe mode and fail open, exactly as this
 one does. The MCP guard is the odd one: an MCP server has no HTTP request to
 inspect and MCP clients carry no signatures, so it does not classify lanes at
 all — it bounds tool calls by rate, budget and repetition instead, and says
