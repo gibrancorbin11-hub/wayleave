@@ -25,7 +25,7 @@ Then policy runs per lane: allow, deny, rate-limit — and on routes you price, 
 
 Only the first lane is cryptographic. The other three are read off what the client says about itself, so a bot willing to lie reaches the human lane — see [Guarantees](#guarantees-honestly-stated), and set `strictPricedPaths` on anything you charge for.
 
-## Two ways to use it
+## Three ways to use it
 
 **1. The hosted Identity API — no install, any language.** Post a request's
 signature headers and get back who signed it and which lane it belongs in.
@@ -53,6 +53,24 @@ way to know which to believe.
 **2. The middleware — in your own process.** Nothing leaves your server that
 you do not send. This is the path if you want to price routes, enforce access
 rules, or stay in-process. Start below.
+
+**3. A platform adapter — if your code does not run on Node.** This package is
+Express middleware and Node's crypto; it cannot run on a Worker or a Deno
+edge function. These can, share one policy engine with it, and are configured
+the same way:
+
+| Where you run | Install |
+|---|---|
+| Cloudflare Workers | [`@wayleave/cloudflare`](https://www.npmjs.com/package/@wayleave/cloudflare) |
+| Vercel middleware | [`@wayleave/vercel`](https://www.npmjs.com/package/@wayleave/vercel) |
+| Supabase Edge Functions | [`@wayleave/supabase`](https://www.npmjs.com/package/@wayleave/supabase) |
+| An MCP server | [`@wayleave/mcp`](https://www.npmjs.com/package/@wayleave/mcp) |
+
+All three HTTP adapters default to observe mode and fail open, exactly as this
+one does. The MCP guard is the odd one: an MCP server has no HTTP request to
+inspect and MCP clients carry no signatures, so it does not classify lanes at
+all — it bounds tool calls by rate, budget and repetition instead, and says
+`classification: "unknown"` rather than guessing.
 
 ## Quickstart: observe first
 
