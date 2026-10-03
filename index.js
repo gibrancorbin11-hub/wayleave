@@ -344,7 +344,18 @@ export function classify(req, directories, now, opts = {}) {
   if (h['signature'] || h['signature-input'])
     return { lane: LANES.SUSPECT, agentId: null,
              evidence: [`crypto: ${v.reason}`, 'presented invalid signature'] };
-  if (AGENT_UA.some(p => p.test(ua))) {
+  /* WHICH pattern matched, not merely that one did.
+     
+     This used to be `.some(...)`, and the evidence then quoted the first 40
+     characters of the user-agent. Almost every bot UA opens with a Mozilla
+     compatibility preamble and names itself at the END, so the quote cut off
+     exactly where the identifying part began: 486 crossings on one site all
+     recorded as `mozilla/5.0 applewebkit/537.36 (khtml, l`, indistinguishable
+     from each other and from a browser.
+     
+     The matched pattern is the name. It was in hand and discarded. */
+  const agentMatch = AGENT_UA.map(p => (p.exec(ua) || [])[0]).find(Boolean);
+  if (agentMatch) {
     // A UA naming a known operator is a claim, and claims are checkable when
     // the operator publishes its addresses. Claiming to be GPTBot from an
     // address OpenAI does not own is a stronger fraud signal than saying
@@ -356,10 +367,10 @@ export function classify(req, directories, now, opts = {}) {
       : null;
     if (ipOk === false)
       return { lane: LANES.SUSPECT, agentId: null,
-               evidence: [`UA claims "${ua.slice(0, 40)}"`,
+               evidence: [`UA claims "${agentMatch}"`,
                           `but ${opts.ip || 'the client'} is not a published address for it`] };
     return { lane: LANES.DECLARED, agentId: null,
-             evidence: [`self-identified in UA: "${ua.slice(0, 40)}"`,
+             evidence: [`self-identified as "${agentMatch}"`,
                         ipOk === true ? 'source address matches published range'
                                       : 'no signature presented'] };
   }

@@ -712,3 +712,50 @@ test('classify without options behaves exactly as before', () => {
   const c = classify(req('/api/listings', { ua: 'GPTBot/1.0' }), DIRS(), NOW);
   assert.equal(c.lane, LANES.DECLARED);
 });
+
+/* ── The evidence named the preamble instead of the agent ──────────────────
+
+   The declared branch quoted the first 40 characters of the user-agent.
+   Almost every bot UA opens with a Mozilla compatibility preamble and names
+   itself at the END, so the quote cut off exactly where the identifying part
+   began. On one live site, 486 declared agents were all recorded as
+   "mozilla/5.0 applewebkit/537.36 (khtml, l" — indistinguishable from each
+   other, and from a browser.
+
+   The matched pattern IS the name, and it was in hand and discarded. */
+test('declared evidence names the agent, not the preamble', () => {
+  const ua = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.0; +https://openai.com/gptbot';
+  const c = classify({ headers: { 'user-agent': ua }, authority: 'x' }, {}, Date.now(), {});
+  assert.equal(c.lane, LANES.DECLARED);
+  assert.match(c.evidence[0], /gptbot/i, 'the name must be in the evidence');
+  assert.doesNotMatch(c.evidence[0], /applewebkit/i, 'the preamble must not be');
+});
+
+test('two different bots behind the same preamble are told apart', () => {
+  /* The whole failure. Same leading 40 characters, different agents — and
+     the old evidence made them identical strings. */
+  const pre = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ';
+  const ev = (name) => classify({ headers: { 'user-agent': pre + name } },
+                                {}, Date.now(), {}).evidence[0];
+  const a = ev('GPTBot/1.0'), b = ev('PerplexityBot/1.0');
+  assert.notEqual(a, b);
+  assert.match(a, /gptbot/i);
+  assert.match(b, /perplexitybot/i);
+});
+
+test('a spoofed operator is named too, in the fraud lane', () => {
+  /* Claiming to be GPTBot from an address OpenAI does not own is the
+     strongest fraud signal there is — and knowing WHICH operator was
+     impersonated is the point of recording it. */
+  const c = classify({ headers: { 'user-agent': 'compatible; GPTBot/1.0' }, authority: 'x' },
+                     {}, Date.now(), { verifyAgentIP: () => false, ip: '203.0.113.9' });
+  assert.equal(c.lane, LANES.SUSPECT);
+  assert.match(c.evidence[0], /gptbot/i);
+});
+
+test('a real browser is still a human', () => {
+  const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120';
+  const c = classify({ headers: { 'user-agent': ua, 'accept-language': 'en-US' }, authority: 'x' },
+                     {}, Date.now(), {});
+  assert.equal(c.lane, LANES.HUMAN);
+});
