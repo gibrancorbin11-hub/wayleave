@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.5.6
+
+### A POST route published as GET
+
+`buildManifest` hardcoded `method: "GET"` and the description
+`"x402-priced route"` on every resource. Most paid APIs are POST, so the
+manifest advertised a call that cannot work — and by this module's own
+standard, an entry an index cannot act on is "indistinguishable from not
+publishing at all". Anyone who priced a POST route and published a manifest
+was invisible to discovery and had no way to tell.
+
+A priced path may now carry its method and a real description:
+
+```js
+pricedPaths: {
+  '/v1/score': { price: 0.01, method: 'POST', description: 'Score one transaction' },
+}
+```
+
+A bare price still means exactly what it meant before — GET, generic
+description — so no existing install changes.
+
+The gate reads the same `routeSpec()` the manifest does, so a route
+configured this way still charges its price rather than the object carrying
+it, and the 402 and the manifest cannot describe a route differently. That
+pairing is the whole point: patching the manifest alone would have left the
+challenge quoting an object as `price_usd`, which is a broken payment rail
+shipped by what looks like a documentation change. Tested on both paths.
+
+
 ## 0.5.4
 
 ### handle() ignored your policy

@@ -759,3 +759,43 @@ test('a real browser is still a human', () => {
                      {}, Date.now(), {});
   assert.equal(c.lane, LANES.HUMAN);
 });
+
+test('a route configured with a method still charges its price, not the object', () => {
+  /* The failure this guards against: patching the manifest to publish POST
+     while the gate keeps destructuring the value as the price. The 402 would
+     then quote an object as price_usd and billing would record one — a
+     payment rail broken by what looked like a documentation change. */
+  const opts = { ...OPTS(), pricedPaths: {
+    '/api/premium': { price: 0.05, method: 'POST', description: 'Comparable sales' },
+  } };
+  const r = new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW);
+  assert.equal(r.status, 402);
+  assert.equal(r.challenge.price_usd, 0.05, 'the price must survive the richer config');
+  assert.equal(typeof r.challenge.price_usd, 'number');
+});
+
+test('and it still bills that price when payment settles', () => {
+  const opts = { ...OPTS(),
+    pricedPaths: { '/api/premium': { price: 0.05, method: 'POST' } },
+    verifyPayment: p => p === 'settled-tx-9f3' };
+  const r = new Wayleave(opts).handle(
+    signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW, 'settled-tx-9f3');
+  assert.equal(r.status, 200);
+  assert.equal(r.billed, 0.05, 'billing must record the price, never the config object');
+});
+
+test('the manifest the gate serves agrees with the challenge it issues', () => {
+  /* One source, so the document and the 402 cannot drift. */
+  const opts = { ...OPTS(),
+    pricedPaths: { '/api/premium': { price: 0.05, method: 'POST', description: 'Comparable sales' } },
+    payment: { network: 'base', payTo: '0x' + 'b'.repeat(40) } };
+  const gate = new Wayleave(opts);
+  const doc = gate.manifests.forOrigin('https://app.example.com');
+  const entry = doc.resources.find(r => r.url.endsWith('/api/premium'));
+  assert.equal(entry.method, 'POST');
+  assert.equal(entry.description, 'Comparable sales');
+  const challenge = gate.handle(signed(req('/api/premium/comps', { ua: 'ClaudeBot/1.0' })), NOW).challenge;
+  assert.equal(entry.accepts[0].maxAmountRequired, '50000');
+  assert.equal(challenge.price_usd, 0.05, 'the same 0.05, said two ways');
+});

@@ -25,7 +25,7 @@ import { MeterSink } from './meter.js';
 import { RemotePolicy } from './policy.js';
 import { evaluatePolicy, evaluatePolicySync } from './policy-engine.js';
 import { Registry } from './registry.js';
-import { ManifestServer, MANIFEST_PATHS, originFor, paymentRequirementsFor } from './manifest.js';
+import { ManifestServer, MANIFEST_PATHS, originFor, paymentRequirementsFor, routeSpec } from './manifest.js';
 
 export const LANES = Object.freeze({
   VERIFIED: 'verified_agent',
@@ -482,6 +482,7 @@ export class Wayleave {
    *   rules: { [lane]: [ [pathPrefix, allow], ... ] },
    *   rateLimits: { [lane]: perWindow }, rateWindow: 60,
    *   pricedPaths: { pathPrefix: priceUsd },
+   *   pricedPaths: { pathPrefix: { price, method, description } },
    *   verifyPayment: (proof, ctx) => boolean | { ok, ref },
    *   strictPricedPaths: false,
    *   confirmHuman: (req) => boolean,
@@ -776,8 +777,13 @@ export class Wayleave {
       ? this._confirmedHuman(req)
       : lane === LANES.HUMAN;
     if (!freeOnPriced) {
-      for (const [prefix, price] of Object.entries(this.pricedPaths)) {
+      for (const [prefix, configured] of Object.entries(this.pricedPaths)) {
         if (pathUnder(req.path, prefix)) {
+          /* Through routeSpec, so a route configured with a method and a
+             description still charges its price and not the object holding
+             it. The manifest reads the same function, so the document and
+             this challenge cannot disagree about what a route costs. */
+          const { price } = routeSpec(configured);
           const challenge = { scheme: 'x402', price_usd: price, resource: prefix };
           if (!paymentProof) {
             const why = this.strictPricedPaths && lane === LANES.HUMAN

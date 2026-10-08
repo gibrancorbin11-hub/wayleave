@@ -42,6 +42,35 @@ const KNOWN_ASSETS = {
 const DEFAULT_TIMEOUT_SECONDS = 60;
 
 /**
+ * One priced route, however it was configured.
+ *
+ * `pricedPaths` was `{ path: priceUsd }`, and the manifest hardcoded
+ * `method: 'GET'` and the description "x402-priced route" for every entry.
+ * For a POST API — which is most paid APIs — that published a call that
+ * cannot work, and by this module's own standard an entry an index cannot
+ * act on is "indistinguishable from not publishing at all".
+ *
+ * A value may now be the price as before, or an object carrying the method
+ * and a real description. Both consumers of a priced path go through here —
+ * the manifest and the gate's own 402 — so the document and the challenge
+ * cannot describe the route differently.
+ *
+ *   pricedPaths: { '/api/x': 0.05 }
+ *   pricedPaths: { '/api/x': { price: 0.05, method: 'POST',
+ *                              description: 'Score one transaction' } }
+ */
+export function routeSpec(value) {
+  const rich = value !== null && typeof value === 'object';
+  const price = rich ? value.price : value;
+  return {
+    price,
+    method: String((rich && value.method) || 'GET').toUpperCase(),
+    description: (rich && value.description) || 'x402-priced route',
+    mimeType: (rich && value.mimeType) || 'application/json',
+  };
+}
+
+/**
  * Build the manifest from configuration. A pure function of `pricedPaths` and
  * `payment`: there is no separate document to author, and therefore none to
  * drift out of step with what the gate actually charges.
@@ -68,19 +97,20 @@ export function buildManifest({ pricedPaths = {}, payment = {}, origin,
   // a wrong address is worse than a missing one.
   const priceable = Boolean(asset && payTo && Number.isInteger(decimals));
 
-  const resources = routes.map(([path, priceUsd]) => {
+  const resources = routes.map(([path, value]) => {
+    const spec = routeSpec(value);
     const url = origin.replace(/\/+$/, '') + path;
-    const entry = { url, method: 'GET', description: 'x402-priced route' };
+    const entry = { url, method: spec.method, description: spec.description };
     if (priceable) {
       entry.accepts = [{
         scheme: 'exact',
         network,
-        maxAmountRequired: toAtomicUnits(String(priceUsd), decimals),
+        maxAmountRequired: toAtomicUnits(String(spec.price), decimals),
         asset,
         payTo,
         resource: url,
-        description: 'x402-priced route',
-        mimeType: 'application/json',
+        description: spec.description,
+        mimeType: spec.mimeType,
         maxTimeoutSeconds: payment.maxTimeoutSeconds || DEFAULT_TIMEOUT_SECONDS,
       }];
     }

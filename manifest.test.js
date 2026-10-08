@@ -275,3 +275,46 @@ t2('with no payment configured the 402 omits accepts rather than sending an empt
   assert2.ok(!('accepts' in body), 'accepts must be absent, not empty');
   assert2.ok(body.challenge, 'the internal challenge still describes the price');
 });
+
+// ── a POST route publishes as POST ───────────────────────────────────────
+
+test('a route can say which method it serves, and the manifest publishes it', () => {
+  /* The old shape hardcoded GET for every resource. Most paid APIs are POST,
+     and an index that records GET records a call that cannot work — by this
+     module's own standard, indistinguishable from not publishing at all. */
+  const m = buildManifest({
+    origin: 'https://api.example.com',
+    pricedPaths: { '/v1/score': { price: '0.01', method: 'post',
+                                  description: 'Score one transaction' } },
+    payment: { network: 'base', payTo: '0x' + 'a'.repeat(40) },
+  });
+  const r = m.resources[0];
+  assert.equal(r.method, 'POST', 'the method is published, and upper-cased');
+  assert.equal(r.description, 'Score one transaction');
+  assert.equal(r.accepts[0].description, r.description,
+    'the offer and the resource must describe the same thing');
+  assert.equal(r.accepts[0].maxAmountRequired, '10000', 'the price still converts exactly');
+});
+
+test('a bare price behaves exactly as it did before', () => {
+  /* Every existing install passes a number. None of them may change. */
+  const m = buildManifest({
+    origin: 'https://api.example.com',
+    pricedPaths: { '/api': 0.05 },
+    payment: { network: 'base', payTo: '0x' + 'a'.repeat(40) },
+  });
+  const r = m.resources[0];
+  assert.equal(r.method, 'GET');
+  assert.equal(r.description, 'x402-priced route');
+  assert.equal(r.accepts[0].maxAmountRequired, '50000');
+});
+
+test('the gate charges the price, not the object carrying it', async () => {
+  /* The failure this guards: changing the manifest alone would leave the
+     402 challenge quoting "[object Object]" as a price — a broken payment
+     rail, shipped by a documentation change. */
+  const { routeSpec } = await import('./manifest.js');
+  assert.equal(routeSpec({ price: 0.05, method: 'POST' }).price, 0.05);
+  assert.equal(routeSpec(0.05).price, 0.05);
+  assert.equal(routeSpec('0.05').price, '0.05');
+});

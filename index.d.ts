@@ -264,7 +264,16 @@ export interface WayleaveOptions {
   /** Window length in seconds. Default 60. */
   rateWindow?: number;
   /** Path prefix -> price in USD. Non-human lanes get 402 here. */
-  pricedPaths?: Record<string, number>;
+  /** A price, or a price with the method and description to publish.
+   *  A bare number keeps the old behaviour: GET, generic description. */
+  pricedPaths?: Record<string, number | {
+    price: number | string;
+    /** The HTTP method this route actually serves. Default GET.
+     *  Publishing GET for a POST API advertises a call that cannot work. */
+    method?: string;
+    description?: string;
+    mimeType?: string;
+  }>;
   /**
    * Confirms a payment actually settled. **Without this, every priced route
    * stays 402 forever** — deny is the only safe default, since the proof is a
