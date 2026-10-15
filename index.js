@@ -82,6 +82,30 @@ function headerValue(headers, name) {
 }
 
 /**
+ * The payment header, read under both names.
+ *
+ * x402 calls this `X-PAYMENT`. This gate shipped reading only
+ * `x-payment-proof`, a name of its own invention, and nothing read the
+ * standard one. So an agent that did everything right — fetched
+ * /.well-known/x402, read the `accepts` block this gate itself publishes,
+ * and paid exactly as the protocol specifies — had its payment ignored and
+ * received a second 402. The gate advertised x402 and could not be paid by
+ * x402, which is the one thing it exists to do.
+ *
+ * `X-PAYMENT` wins because it is what the protocol mandates and what a
+ * stranger's agent sends without being told. `x-payment-proof` is still read
+ * so anything already deployed against it keeps working; this is strictly a
+ * superset.
+ *
+ * The value is passed through untouched. This gate does not parse payments —
+ * `verifyPayment` does, and it is yours — so this is a transport fix, not a
+ * protocol implementation.
+ */
+function paymentHeader(headers) {
+  return headerValue(headers, 'x-payment') || headerValue(headers, 'x-payment-proof');
+}
+
+/**
  * Build the signature base from the components the signer actually declared,
  * not from a fixed list. An agent covering only ("@authority") is valid.
  */
@@ -629,7 +653,7 @@ export class Wayleave {
                        { verifyAgentIP: this.verifyAgentIP, ip: this._client(r) });
     const { lane, agentId, evidence } = c;
     const ident = agentId || `${lane}:${this._client(r)}`;
-    const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
+    const proof = paymentProof || paymentHeader(req.headers);
     /* The same policy the async path enforces, evaluated here for every rule
        that needs no I/O. Before this, `handle()` skipped policy entirely and
        one document behaved as two: enforced through express(), ignored here. */
@@ -688,7 +712,7 @@ export class Wayleave {
                        { verifyAgentIP: this.verifyAgentIP, ip: this._client(r) });
     const { lane, agentId, evidence } = c;
     const ident = agentId || `${lane}:${this._client(r)}`;
-    const proof = paymentProof || headerValue(req.headers, 'x-payment-proof');
+    const proof = paymentProof || paymentHeader(req.headers);
     const fromPolicy = await this._policyDecision(r, lane, ident, c);
     const d = fromPolicy || await this._decideAsync(r, lane, ident, now, proof, c);
     const entry = { v: 1, idempotencyKey: `${this._instance}:${this._seq++}`,
@@ -1016,7 +1040,7 @@ export class Wayleave {
         // none of which survive the projection above. Classification still
         // reads only the fields it declares; this is for your callback.
         raw: req,
-      }, undefined, req.headers['x-payment-proof'] || '');
+      }, undefined, paymentHeader(req.headers));
       req.wayleave = r;
       if (r.status === 200) return next();
       if (r.status === 402) {

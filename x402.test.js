@@ -191,3 +191,50 @@ test('an unknown network works when the caller supplies asset and domain', () =>
     network: 'polygon', asset: '0xtoken', extra: { name: 'USD Coin', version: '2' },
   }));
 });
+
+/* ── the payment header the protocol actually uses ───────────────────────
+   This gate published a spec-compliant 402 — `accepts`, PaymentRequirements,
+   the lot — and then read the payment back from `x-payment-proof`, a name of
+   its own. x402 names that header `X-PAYMENT`. So an agent that read our own
+   manifest and paid exactly as specified had its payment ignored and got a
+   second 402: advertised x402, unpayable by x402.
+
+   These four pin the fix. Each fails against the old single-header read,
+   except the back-compat one, which is the point of keeping it. */
+
+const payGate = (seen) => new Wayleave({
+  pricedPaths: { '/api/premium': 0.05 },
+  sink: { emit() {} },
+  verifyPayment: (proof) => { seen.push(proof); return { ok: true, ref: 'ref_1' }; },
+});
+
+const premium = (headers) => ({ method: 'GET', path: '/api/premium/x', url: '/api/premium/x',
+  headers: { 'user-agent': 'GPTBot/1.0', ...headers } });
+
+test('a payment sent as X-PAYMENT is seen and settles', () => {
+  const seen = [];
+  const r = payGate(seen).handle(premium({ 'x-payment': 'eyJzY2hlbWUiOiJleGFjdCJ9' }));
+  assert.equal(r.status, 200, 'a spec-compliant agent must be able to pay');
+  assert.deepEqual(seen, ['eyJzY2hlbWUiOiJleGFjdCJ9'], 'the payload reaches verifyPayment untouched');
+});
+
+test('x-payment-proof still works, so nothing deployed breaks', () => {
+  const seen = [];
+  const r = payGate(seen).handle(premium({ 'x-payment-proof': 'legacy-proof' }));
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, ['legacy-proof']);
+});
+
+test('X-PAYMENT wins when both are present', () => {
+  const seen = [];
+  payGate(seen).handle(premium({ 'x-payment': 'spec', 'x-payment-proof': 'legacy' }));
+  assert.deepEqual(seen, ['spec'], 'the protocol header is the authority');
+});
+
+test('no payment header still yields a 402 with a challenge', () => {
+  const seen = [];
+  const r = payGate(seen).handle(premium({}));
+  assert.equal(r.status, 402);
+  assert.ok(r.challenge, 'and an agent is told what to pay');
+  assert.deepEqual(seen, [], 'the verifier is not troubled with an empty proof');
+});
