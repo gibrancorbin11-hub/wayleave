@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.5.7
+
+### The gate advertised x402 and could not be paid by x402
+
+Two bugs on the one path a paying agent has to walk. Both were found by
+writing a client that pays, not by reading the code — this repo could
+always CHARGE and had nothing that could PAY, so the priced path had never
+been walked end to end by anything behaving like a stranger's agent.
+
+**The payment header.** The gate publishes a correct challenge: 402 with
+`accepts` and full PaymentRequirements, built from the same source as the
+manifest so the two cannot disagree. It then read the payment back from
+`x-payment-proof`, a name of its own. x402 specifies `X-PAYMENT`.
+
+So an agent doing everything right — fetching `/.well-known/x402`, reading
+the `accepts` block this gate itself published, paying exactly as the
+protocol says — had its payment ignored and received a second 402. Nothing
+errored. No test noticed, because every test sent the header the gate had
+invented.
+
+Both names are read now, `X-PAYMENT` first, since that is what the protocol
+mandates and what a stranger's agent sends unprompted. `x-payment-proof`
+still works, so nothing already deployed breaks.
+
+**The payload encoding.** x402 defines `X-PAYMENT` as the base64 encoding of
+the payload. `coinbaseFacilitator` accepted raw JSON only, so an agent that
+cleared the header fix failed at the next step with "payment proof is not a
+valid x402 payload" — an error reading as though the agent sent something
+malformed, when what it sent was exactly what the protocol prescribes. JSON
+and base64 are both accepted now.
+
+Upgrade if you have priced routes. Before this, a third-party x402 agent
+could not pay them.
+
+### A paying client, in `client/`
+
+Its own package, so the gate stays dependency-free: signing EIP-712 needs
+keccak256 and Node has no builtin — `sha3-256` is a different algorithm
+despite the name, and using it produces signatures that verify nowhere.
+
+It reads `accepts[0]`, signs an EIP-3009 `TransferWithAuthorization`
+against the token's own domain, sends it base64 in `X-PAYMENT`, and retries
+exactly once. No transaction and no gas from the agent; the facilitator
+submits.
+
+It refuses rather than signing blind on an unknown scheme, an unknown
+network, or a challenge naming a token other than the one whose domain it
+is about to sign against — otherwise a server could collect a signature
+valid for real USDC by asking for something else. It will not follow a
+redirect while carrying an authorisation, which is bearer-equivalent.
+
+### Known gap: the EIP-712 domain is not published
+
+`accepts` carries scheme, network, amount, asset, payTo and timeout, but no
+`extra`. The domain cannot be derived from those, and a signature against
+the wrong one is well-formed and verifies nowhere — Base mainnet USDC calls
+itself "USD Coin", the Sepolia token calls itself "USDC". Every client must
+therefore hardcode it per token, as `client/` does. `coinbaseFacilitator`
+already knows these values and sends them to CDP; publishing them in the
+challenge is the fix, and is not in this release.
+
 ## 0.5.6
 
 ### A POST route published as GET
