@@ -87,6 +87,19 @@ const KNOWN_ASSETS = {
   },
 };
 
+/** JSON, or base64 of JSON. Returns null when it is neither. */
+function parsePayload(raw) {
+  const text = String(raw).trim();
+  if (!text) return null;
+  try { const v = JSON.parse(text); if (v && typeof v === 'object') return v; } catch {}
+  try {
+    const decoded = Buffer.from(text, 'base64').toString('utf8');
+    const v = JSON.parse(decoded);
+    if (v && typeof v === 'object') return v;
+  } catch {}
+  return null;
+}
+
 /**
  * Build a `verifyPayment(proof, ctx)` for the Coinbase x402 facilitator.
  *
@@ -138,8 +151,21 @@ export function coinbaseFacilitator({
     // payload as JSON. Accept either so a customer does not have to care.
     let paymentPayload = proof;
     if (typeof proof === 'string') {
-      try { paymentPayload = JSON.parse(proof); }
-      catch { return deny('payment proof is not a valid x402 payload'); }
+      /* Raw JSON or base64 JSON.
+       *
+       * x402 defines the X-PAYMENT header as the base64 encoding of the
+       * payload, so that is what a spec-compliant agent sends. This accepted
+       * only raw JSON, which meant the agent cleared the header fix and then
+       * failed here with "payment proof is not a valid x402 payload" — an
+       * error that reads like the agent sent something malformed when what it
+       * sent was exactly what the protocol prescribes.
+       *
+       * Both are taken, which is the stated intent of this block anyway.
+       * JSON first: a payload is unambiguous JSON and never also valid
+       * base64 of different JSON, so trying it first cannot mis-read one as
+       * the other. */
+      paymentPayload = parsePayload(proof);
+      if (!paymentPayload) return deny('payment proof is not a valid x402 payload');
     }
     if (!paymentPayload || typeof paymentPayload !== 'object')
       return deny('no payment payload supplied');

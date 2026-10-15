@@ -1,0 +1,9 @@
+{
+  "name": "@wayleave/x402-client",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "A paying x402 agent. Separate package so the gate stays dependency-free.",
+  "scripts": { "test": "node --test *.test.js" },
+  "dependencies": { "viem": "^2.21.0" }
+}
